@@ -5,7 +5,7 @@ from .trajectory import Trajectory, TrajectorySegment
 from .unit import Unit
 
 class Generator(Unit):
-    def __init__(self, detection_radius:float, start_time:float, end_time:float, neg_v_prob:float = 0.5, num_samples: float = 1, num_seg:float = 2, velocity_pool = np.arange(200, 401, 50), radius_pool=np.arange(500, 1001, 100)):
+    def __init__(self, detection_radius:float, start_time:float, end_time:float, neg_v_prob:float = 0.5, num_samples: float = 1, num_seg:float = 2, velocity_pool = np.arange(200, 401, 50), radius_pool=np.arange(2000, 3001, 200)):
         super().__init__()
         self.__detection_radius = detection_radius
         self.__num_samples = num_samples
@@ -71,7 +71,7 @@ class Generator(Unit):
         print(f"Circular st_t = {start_time}, end_t = {end_time}")
         if len(trajectory.get_segments()) == 0:
             raise ValueError("Движение по окружности может быть только после прямолинейного")
-        return TrajectorySegment(start_time, end_time, None, 'circular', [radius, angular_velocity, vz, np.random.choice([-1, 1])], previous_segment=trajectory.get_segments()[-1])
+        return TrajectorySegment(start_time, end_time, None, 'circular', [radius, angular_velocity, vz, -1], previous_segment=trajectory.get_segments()[-1])
 
     def gen_traces(self) -> AirEnv:
         ae = AirEnv()

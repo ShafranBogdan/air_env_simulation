@@ -28,10 +28,10 @@ class TrajectorySegment:
         if self.motion_type == 'circular' and previous_segment:
             radius, angular_velocity, _, direction = self.params
             vx, vy, vz = previous_segment.params  # Скорости предыдущего линейного сегмента
-            self.center = self.calculate_center_from_last_point(radius, vx, vy, vz, direction)
+            self.center = self.calculate_center_from_last_point(radius, vx, vy, direction)
             self.initial_angle = self.calculate_initial_angle(vx, vy, direction)
 
-    def calculate_center_from_last_point(self, radius, vx, vy, vz, direction):
+    def calculate_center_from_last_point(self, radius, vx, vy, direction):
         """
         Рассчитывает центр окружности для плавного входа в круговое движение.
         Центр окружности находится на расстоянии radius от последней точки предыдущей траектории
@@ -42,20 +42,13 @@ class TrajectorySegment:
         - vx, vy: компоненты скорости движения по x и y в предыдущем сегменте (линейное движение)
         - direction: направление поворота, +1 для направо, -1 для налево
         """
-        # Нормальный вектор (перпендикулярный движению) для смещения центра окружности
-        norm_vx = -vy * direction
-        norm_vy = vx * direction
-
-        # Нормируем вектор, чтобы его длина была равна радиусу
-        norm_length = np.sqrt(norm_vx**2 + norm_vy**2)
-        norm_vx = (norm_vx / norm_length) * radius
-        norm_vy = (norm_vy / norm_length) * radius
+        incline_angle = np.arctan(vy / vx)
 
         # Начальная точка траектории — это конец предыдущей прямолинейной траектории
         x0, y0, z0 = self.initial_position
 
         # Центр окружности смещен от конечной точки на радиус вдоль нормали
-        return np.array([x0 + norm_vx, y0 + norm_vy, z0])
+        return np.array([x0 + radius * np.cos(incline_angle - direction * np.pi / 2), y0 + radius * np.sin(incline_angle - direction * np.pi / 2), z0])
 
     def calculate_initial_angle(self, vx, vy, direction):
         """
@@ -64,14 +57,13 @@ class TrajectorySegment:
         
         Параметры:
         - vx, vy: скорости по x и y предыдущего линейного движения
-        - direction: направление поворота, +1 для налево, -1 для направо
+        - direction: направление поворота, +1 для направо, -1 для налево
         """
         # Угол движения относительно оси X (угол наклона траектории в точке перехода)
-        tangent_angle = np.arctan2(vy, vx)
+        tangent_angle = np.arctan(vy / vx)
         
         # Для плавного входа в круговую траекторию добавляем фазовый сдвиг ±pi/2
         initial_angle = tangent_angle + direction * np.pi / 2
-        initial_angle = tangent_angle
         return initial_angle
     
     def get_position_in_segment(self, t):
@@ -87,7 +79,7 @@ class TrajectorySegment:
             radius, angular_velocity, vz, direction = self.params
             delta_t = t - self.start_time
             # Рассчитываем текущее смещение по углу с учетом начального угла
-            angle = self.initial_angle + direction * angular_velocity * delta_t
+            angle = self.initial_angle - direction * angular_velocity * delta_t
             z_movement = vz * delta_t  # Движение по оси z
             return np.array([
                 self.center[0] + radius * np.cos(angle),
