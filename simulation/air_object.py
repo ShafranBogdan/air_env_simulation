@@ -1,5 +1,5 @@
 from .unit import Unit
-from .traejctory import Trajectory
+from .trajectory import Trajectory
 from typing import Callable
 import numpy as np
 

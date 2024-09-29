@@ -7,8 +7,8 @@ from .air_env import AirEnv
 
 class RadarSystem(Unit):
 
-    def __init__(self, position: np.array=np.array([0, 0, 0]), detection_radius: float=10000, error: float=1., air_env: AirEnv = None,
-                 detection_fault_probability: float = 0.0, detection_period: int = 1,
+    def __init__(self, position: np.array=np.array([0, 0, 0]), detection_radius: float=10000, error: float=5., air_env: AirEnv = None,
+                 detection_fault_probability: float = 0., detection_period: int = 100,
                  detection_delay: int = 0) -> None:
         super().__init__()
 
@@ -101,7 +101,7 @@ class RadarSystem(Unit):
             'fi_measure', 
             'psi_measure'
         ):
-            detections[f'v_{coord}_extr'] = None if len(self.__data) == 0 else (detections[coord] - self.__data.iloc[len(self.__data) - 1][coord]) / self.time.get_dt()
+            detections[f'v_{coord}_extr'] = None if len(self.__data) == 0 else (detections[coord] - self.__data.iloc[len(self.__data) - 1][coord]) / (detections['time'] - self.__data.iloc[len(self.__data) - 1]['time'])
 
         # Concat new detections with data
         self.__concat_data(detections)
