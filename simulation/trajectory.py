@@ -42,7 +42,7 @@ class TrajectorySegment:
         - vx, vy: компоненты скорости движения по x и y в предыдущем сегменте (линейное движение)
         - direction: направление поворота, +1 для направо, -1 для налево
         """
-        incline_angle = np.arctan(vy / vx)
+        incline_angle = np.arctan2(vy, vx)
 
         # Начальная точка траектории — это конец предыдущей прямолинейной траектории
         x0, y0, z0 = self.initial_position
@@ -60,7 +60,7 @@ class TrajectorySegment:
         - direction: направление поворота, +1 для направо, -1 для налево
         """
         # Угол движения относительно оси X (угол наклона траектории в точке перехода)
-        tangent_angle = np.arctan(vy / vx)
+        tangent_angle = np.arctan2(vy, vx)
         
         # Для плавного входа в круговую траекторию добавляем фазовый сдвиг ±pi/2
         initial_angle = tangent_angle + direction * np.pi / 2

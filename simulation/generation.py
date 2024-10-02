@@ -5,7 +5,7 @@ from .trajectory import Trajectory, TrajectorySegment
 from .unit import Unit
 
 class Generator(Unit):
-    def __init__(self, detection_radius:float, start_time:float, end_time:float, neg_v_prob:float = 0.5, num_samples: float = 1, num_seg:float = 2, velocity_pool = np.arange(200, 401, 50), radius_pool=np.arange(2000, 3001, 200)):
+    def __init__(self, detection_radius:float, start_time:float, end_time:float, neg_v_prob:float = 0.5, num_samples: float = 1, num_seg:float = 2, velocity_pool = np.arange(200, 401, 50), radius_pool=np.arange(5000, 10001, 500)):
         super().__init__()
         self.__detection_radius = detection_radius
         self.__num_samples = num_samples
@@ -49,9 +49,10 @@ class Generator(Unit):
         return start_time, end_time
 
     def __make_linear(self, trajectory, num_seg) -> TrajectorySegment:
+        sign = np.random.choice([-1, 1], p=[self.neg_v_prob, 1 - self.neg_v_prob])
         velocity = [
-                    self.convert_velocity(np.random.choice(self.velocity_pool)), 
-                    self.convert_velocity(np.random.choice(self.velocity_pool)), 
+                    sign * self.convert_velocity(np.random.choice(self.velocity_pool)), 
+                    sign * self.convert_velocity(np.random.choice(self.velocity_pool)), 
                     self.convert_velocity(np.random.choice(np.arange(0, 51, 10)))
                 ]  # Скорости по x, y, z
         
@@ -64,14 +65,15 @@ class Generator(Unit):
             return TrajectorySegment(start_time, end_time, initial_position, 'linear', velocity)
 
     def __make_circular(self, trajectory, num_seg) -> TrajectorySegment:
-        radius = 100
-        angular_velocity = self.calc_w(self.convert_velocity(np.random.choice(self.velocity_pool)), radius) # угловая скорость
+        radius = np.random.choice(self.radius_pool) # выбираем случайный радиус из допустимого набора
+        v = self.convert_velocity(np.random.choice(self.velocity_pool)) # выбираем случайную скорость из допустимого набора
+        angular_velocity = self.calc_w(v, radius) # угловая скорость
         vz = np.random.choice(np.arange(-10, 10, 2)) # моделируем скорость по оси z при движении по окружности
         start_time, end_time = self.__get_time_interval(num_seg)
         print(f"Circular st_t = {start_time}, end_t = {end_time}")
         if len(trajectory.get_segments()) == 0:
             raise ValueError("Движение по окружности может быть только после прямолинейного")
-        return TrajectorySegment(start_time, end_time, None, 'circular', [radius, angular_velocity, vz, -1], previous_segment=trajectory.get_segments()[-1])
+        return TrajectorySegment(start_time, end_time, None, 'circular', [radius, angular_velocity, vz, np.random.choice([-1, 1])], previous_segment=trajectory.get_segments()[-1])
 
     def gen_traces(self) -> AirEnv:
         ae = AirEnv()
