@@ -45,21 +45,23 @@ class Generator(Unit):
     def __get_time_interval(self, num_seg) -> tuple:
         start_time = self.time_intervals[num_seg] + 1 if num_seg > 0 else self.time_intervals[num_seg]
         end_time = self.time_intervals[num_seg + 1]
-        print(start_time, end_time, self.time_intervals)
         return start_time, end_time
 
     def __make_linear(self, trajectory, num_seg) -> TrajectorySegment:
-        sign = np.random.choice([-1, 1], p=[self.neg_v_prob, 1 - self.neg_v_prob])
-        velocity = [
-                    sign * self.convert_velocity(np.random.choice(self.velocity_pool)), 
-                    sign * self.convert_velocity(np.random.choice(self.velocity_pool)), 
-                    self.convert_velocity(np.random.choice(np.arange(0, 51, 10)))
-                ]  # Скорости по x, y, z
-        
+        if num_seg == 0:
+            sign = np.random.choice([-1, 1], p=[self.neg_v_prob, 1 - self.neg_v_prob])
+            velocity = [
+                        sign * self.convert_velocity(np.random.choice(self.velocity_pool)), 
+                        sign * self.convert_velocity(np.random.choice(self.velocity_pool)), 
+                        self.convert_velocity(np.random.choice(np.arange(0, 51, 10)))
+                    ]  # Скорости по x, y, z
+        else:
+            velocity = None
         start_time, end_time = self.__get_time_interval(num_seg)
         print(f"Linear st_t = {start_time}, end_t = {end_time}")
-        if len(trajectory.get_segments()):
-            return TrajectorySegment(start_time, end_time, None, 'linear', velocity)
+        print(f'V info num_seg = {num_seg}, v = {velocity}')
+        if len(trajectory.get_segments()) != 0:
+            return TrajectorySegment(start_time, end_time, None, 'linear', velocity, previous_segment=trajectory.get_segments()[-1])
         else:
             initial_position = self.__get_random_position(self.__detection_radius)
             return TrajectorySegment(start_time, end_time, initial_position, 'linear', velocity)
@@ -68,7 +70,7 @@ class Generator(Unit):
         radius = np.random.choice(self.radius_pool) # выбираем случайный радиус из допустимого набора
         v = self.convert_velocity(np.random.choice(self.velocity_pool)) # выбираем случайную скорость из допустимого набора
         angular_velocity = self.calc_w(v, radius) # угловая скорость
-        vz = np.random.choice(np.arange(-10, 10, 2)) # моделируем скорость по оси z при движении по окружности
+        vz = 0 # моделируем скорость по оси z при движении по окружности(пока 0)
         start_time, end_time = self.__get_time_interval(num_seg)
         print(f"Circular st_t = {start_time}, end_t = {end_time}")
         if len(trajectory.get_segments()) == 0:
@@ -81,7 +83,7 @@ class Generator(Unit):
             trajectory = Trajectory()
             print(f"Id = {_}")
             for num_seg in range(self.__num_seg):
-                motion_type = np.random.choice(['linear', 'circular'], [0, 1]) if num_seg >= 1 else 'linear'
+                motion_type = np.random.choice(['linear', 'circular'], p=[1, 0]) if num_seg >= 1 else 'linear'
                 if motion_type == 'linear':
                     trajectory.add_segment(self.__make_linear(trajectory, num_seg))
                 else:

@@ -36,6 +36,9 @@ class AirEnv(Unit):
                 self.__air_objects.pop(k, None)
                 return k
     
+    def get_air_objects_count(self):
+        return self.__air_object_id_next
+
     def air_objects_dataframe(self) -> pd.DataFrame:
         """
         Для текущего момента модельного времени формируется таблица положений всех ВО

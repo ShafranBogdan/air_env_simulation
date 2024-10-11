@@ -1,6 +1,7 @@
 import numpy as np
+from .unit import Unit
 
-class TrajectorySegment:
+class TrajectorySegment(Unit):
     def __init__(self, start_time, end_time, initial_position, motion_type, params, previous_segment=None):
         """
         Параметры:
@@ -13,14 +14,24 @@ class TrajectorySegment:
             Для 'circular' - (radius, angular_velocity, vz, direction) - параметры окружности и движение по оси z
         - previous_segment: предыдущий сегмент для вычисления начальной точки
         """
+        super().__init__()
         self.start_time = start_time
         self.end_time = end_time
         self.motion_type = motion_type
         self.params = params
 
         # Если начальная позиция не задана, вычисляем её по предыдущему сегменту
+        print(f'Segment info: initial_pos = {initial_position}, prev_seg_is_none = {previous_segment is None}, params = {params}, st_time = {start_time}')
         if initial_position is None and previous_segment:
             self.initial_position = previous_segment.get_position_in_segment(previous_segment.end_time)
+            if motion_type == 'linear' and params is None: # Хотим при переходе на линейный сегмент иметь направление движение с прошлого сегмента
+                dt = self.time.get_dt()
+                prev_initial_position = previous_segment.get_position_in_segment(previous_segment.end_time - dt)
+                vx = (self.initial_position[0] - prev_initial_position[0]) / dt
+                vy = (self.initial_position[1] - prev_initial_position[1]) / dt
+                vz = (self.initial_position[2] - prev_initial_position[2]) / dt
+                self.params = [vx, vy, vz]
+                print(f'params = {params}')
         else:
             self.initial_position = np.array(initial_position)
 
@@ -30,6 +41,9 @@ class TrajectorySegment:
             vx, vy, vz = previous_segment.params  # Скорости предыдущего линейного сегмента
             self.center = self.calculate_center_from_last_point(radius, vx, vy, direction)
             self.initial_angle = self.calculate_initial_angle(vx, vy, direction)
+
+    def trigger(self):
+        pass
 
     def calculate_center_from_last_point(self, radius, vx, vy, direction):
         """
