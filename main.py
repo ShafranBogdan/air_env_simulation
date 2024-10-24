@@ -14,7 +14,7 @@ t = Time()
 
 detection_radius = 40000
 t1 = 0
-t2 = 10**3 
+t2 = 10**3
 num_samples = 1
 gen = Generator(detection_radius=detection_radius, start_time=t1, end_time=t2, num_samples=num_samples, num_seg=1)
 air_env = gen.gen_traces()
