@@ -34,13 +34,18 @@ class Generator(Unit):
 
         return V / 1000
 
-    def __get_random_position(self, r) -> np.array:
+    def __get_random_position(self, r, z_min=10**3, z_max=1.2*10**4) -> np.array:
         vec = np.random.normal(size=3)
         vec /= np.linalg.norm(vec) # Случайный единичный вектор
 
         radius = np.random.uniform(0, 1) ** (1 / 3) # Случайный радиус внутри объема единичной сферы
 
-        return vec * r * radius
+        vec = vec * r * radius  # Множим вектор на радиус
+    
+        # Ограничиваем третью координату z_max
+        vec[2] = np.clip(vec[2], z_min, z_max)
+
+        return vec
 
     def __get_time_interval(self, num_seg) -> tuple:
         start_time = self.time_intervals[num_seg] + 1 if num_seg > 0 else self.time_intervals[num_seg]
