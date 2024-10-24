@@ -1,11 +1,11 @@
 import numpy as np
 
-from simulation import Time
-from simulation import AirObject
-from simulation import AirEnv
-from simulation import RadarSystem
-from simulation import Trajectory, TrajectorySegment
-from simulation import Generator
+from generation import Time
+from generation import AirObject
+from generation import AirEnv
+from generation import RadarSystem
+from generation import Trajectory, TrajectorySegment
+from generation import Generator
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
@@ -14,17 +14,22 @@ t = Time()
 detection_radius = 40000
 t1 = 0
 t2 = 10**5
-num_samples = 5
+num_samples = 2
 gen = Generator(detection_radius=detection_radius, start_time=t1, end_time=t2, num_samples=num_samples, num_seg=2)
 air_env = gen.gen_traces()
-radar = RadarSystem(detection_radius=detection_radius, air_env=air_env, detection_period=10)
+radar = RadarSystem(detection_radius=detection_radius, air_env=air_env, detection_period=100)
 for ms in range(t1, t2):
     radar.trigger()
     t.step()
 
 logs = radar.get_data()
 logs.to_csv("logs.csv", index=False)
-# print(logs)
+
+path_true = r'C:/Users/mi/Documents/C++ Scripts/nir/true_data.txt'
+np.savetxt(path_true, logs.loc[logs['time'].isin(np.arange(t1, t2, 50))][['id','time','r_true','fi_true','psi_true']].values, fmt='%f')
+
+path_raw = r'C:/Users/mi/Documents/C++ Scripts/nir/raw_data.txt'
+np.savetxt(path_raw, logs.loc[logs['time'].isin(np.arange(t1, t2, 50))][['id','time','r_measure','fi_measure','psi_measure']].values, fmt='%f')
 
 fig, ax = plt.subplots()
 ax.set_xlim(-detection_radius - 10, detection_radius + 10)

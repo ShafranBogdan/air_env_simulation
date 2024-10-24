@@ -1,4 +1,4 @@
-from simulation.time import Time
+from generation.time import Time
 
 class Unit:
     def __init__(self) -> None:
