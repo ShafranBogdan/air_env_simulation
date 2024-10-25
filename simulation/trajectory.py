@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class TrajectorySegment:
     def __init__(self, start_time, end_time, initial_position, motion_type, params, previous_segment=None):
         """
@@ -36,7 +37,7 @@ class TrajectorySegment:
         Рассчитывает центр окружности для плавного входа в круговое движение.
         Центр окружности находится на расстоянии radius от последней точки предыдущей траектории
         в направлении, перпендикулярном направлению движения.
-        
+
         Параметры:
         - radius: радиус окружности
         - vx, vy: компоненты скорости движения по x и y в предыдущем сегменте (линейное движение)
@@ -48,24 +49,25 @@ class TrajectorySegment:
         x0, y0, z0 = self.initial_position
 
         # Центр окружности смещен от конечной точки на радиус вдоль нормали
-        return np.array([x0 + radius * np.cos(incline_angle - direction * np.pi / 2), y0 + radius * np.sin(incline_angle - direction * np.pi / 2), z0])
+        return np.array([x0 + radius * np.cos(incline_angle - direction * np.pi / 2),
+                         y0 + radius * np.sin(incline_angle - direction * np.pi / 2), z0])
 
     def calculate_initial_angle(self, vx, vy, direction):
         """
         Рассчитывает начальный угол для круговой траектории, чтобы начать движение по касательной.
         Начальный угол должен быть смещён на pi/2 в зависимости от направления поворота.
-        
+
         Параметры:
         - vx, vy: скорости по x и y предыдущего линейного движения
         - direction: направление поворота, +1 для направо, -1 для налево
         """
         # Угол движения относительно оси X (угол наклона траектории в точке перехода)
         tangent_angle = np.arctan2(vy, vx)
-        
+
         # Для плавного входа в круговую траекторию добавляем фазовый сдвиг ±pi/2
         initial_angle = tangent_angle + direction * np.pi / 2
         return initial_angle
-    
+
     def get_position_in_segment(self, t):
         if t < self.start_time or t > self.end_time:
             return None  # Не в пределах этого сегмента
@@ -87,6 +89,7 @@ class TrajectorySegment:
                 self.center[2] + z_movement
             ])
 
+
 class Trajectory:
     def __init__(self):
         self.__segments = []
@@ -100,7 +103,7 @@ class Trajectory:
 
     def get_segments(self):
         return self.__segments
-    
+
     def get_position(self, t):
         for segment in self.__segments:
             position = segment.get_position_in_segment(t)

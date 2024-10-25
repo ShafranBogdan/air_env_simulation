@@ -4,6 +4,7 @@ from .unit import Unit
 from typing import List
 from .air_object import AirObject
 
+
 class AirEnv(Unit):
 
     def __init__(self, air_objects: List[AirObject] = None) -> None:
@@ -16,7 +17,8 @@ class AirEnv(Unit):
             self.__air_object_id_next = len(air_objects)
 
     def trigger(self) -> None:
-       pass
+        for ao in self.__air_objects.values():
+            ao.trigger()
 
     def is_attached(self, air_object: AirObject) -> bool:
         return air_object in self.__air_objects.values()
@@ -35,7 +37,7 @@ class AirEnv(Unit):
             if v == air_object:
                 self.__air_objects.pop(k, None)
                 return k
-    
+
     def air_objects_dataframe(self) -> pd.DataFrame:
         """
         Для текущего момента модельного времени формируется таблица положений всех ВО
