@@ -3,13 +3,21 @@ import pandas as pd
 
 from .unit import Unit
 from .air_env import AirEnv
-
+from .logger import Logger
 
 class RadarSystem(Unit):
 
-    def __init__(self, position: np.array=np.array([0, 0, 0]), detection_radius: float=10000, error: np.array=np.array([0., 0., 0.]), air_env: AirEnv = None,
-                 detection_fault_probability: float = 0., detection_period: int = 100,
-                 detection_delay: int = 0) -> None:
+    def __init__(self,
+                 logger = Logger('radar_system'),
+                 position: np.array=np.array([0, 0, 0]), 
+                 detection_radius: float=10000, 
+                 error: np.array=np.array([0., 0., 0.]), 
+                 air_env: AirEnv = None,
+                 detection_fault_probability: float = 0., 
+                 detection_period: int = 100,
+                 detection_delay: int = 0,
+                 sharp_fluctuation_prob: float = 0.,
+                 ) -> None:
         """
         position: позиция радара
         detection_radius: радиус обнаружения в метрах
@@ -21,7 +29,9 @@ class RadarSystem(Unit):
         """
         super().__init__()
 
+        self.__logger = logger
         self.__detection_fault_probability = detection_fault_probability
+        self.__sharp_fluctuation_prob = sharp_fluctuation_prob
         self.__detection_period = detection_period
         self.__detection_delay = detection_delay % detection_period
 
@@ -88,9 +98,9 @@ class RadarSystem(Unit):
             'v_r_measure_extr': 'float64',
             'v_fi_measure_extr': 'float64',
             'v_theta_measure_extr': 'float64',
-            'v_r_true_extr_from_cart': 'float64',
-            'v_fi_true_extr_from_cart': 'float64',
-            'v_theta_true_extr_from_cart': 'float64',
+            'v_r_true_from_cart': 'float64',
+            'v_fi_true_from_cart': 'float64',
+            'v_theta_true_from_cart': 'float64',
             'v_r_measure_extr_from_cart': 'float64',
             'v_fi_measure_extr_from_cart': 'float64',
             'v_theta_measure_extr_from_cart': 'float64',
@@ -119,12 +129,14 @@ class RadarSystem(Unit):
         )
         # detections = detections[detections['is_observed']]
         # detections.drop(columns=['is_observed'], inplace=True)
-
         detections['time'] = self.time.get_time()
         detections['r_true'], detections['theta_true'], detections['fi_true'] = self.__to_sphere_coord(detections['x_true'], detections['y_true'], detections['z_true'])
-        detections['r_measure'] = detections['r_true'] + np.random.normal(0, self.__r_error, len(detections))
+
+        sharp_coef = np.random.choice([0, 1], p=[1 - self.__sharp_fluctuation_prob, self.__sharp_fluctuation_prob])
+        detections['r_measure'] = detections['r_true'] + np.random.normal(0, self.__r_error, len(detections)) + sharp_coef * np.random.uniform(10, 12) # добавим к нормальному шуму еще резкий скачок с какой-то вероятностью
         detections['theta_measure'] = detections['theta_true'] + np.random.normal(0, self.__theta_error, len(detections))
         detections['fi_measure'] = detections['fi_true'] + np.random.normal(0, self.__fi_error, len(detections))
+
         detections['x_measure'], detections['y_measure'], detections['z_measure'] = self.__to_cartesian_coord(detections['r_measure'], detections['theta_measure'], detections['fi_measure'])
         detections['r_error'] = self.__r_error
         detections['theta_error'] = self.__theta_error
@@ -157,19 +169,22 @@ class RadarSystem(Unit):
                     # Вычисляем экстраполированные сферические координаты
                     print(f'For sphere cast prev_v_r_measure_smooth = {prev_detect[f'v_r_measure_smooth'][0]}, prev_v_r_measure = {prev_detect[f'v_r_measure'][0]}, prev_v_r_measure_extr = {prev_detect[f'v_r_measure_extr'][0]}')
                     print(f'For sphere cast prev_r_measure_smooth = {prev_detect[f'r_measure_smooth'][0]}, prev_r_measure = {prev_detect[f'r_measure'][0]}, prev_r_measure_extr = {prev_detect[f'r_measure_extr'][0]}')
-                    print(f'For sphere cast prev_r_measure_smooth = {prev_detect[f'r_measure_smooth'][0]}, prev_r_measure = {prev_detect[f'r_measure'][0]}, prev_r_measure_extr = {prev_detect[f'fi_measure_extr'][0]}')
-                    pd_v_x, pd_v_y, pd_v_z = self.__spherical_to_cartesian_velocity(prev_detect[f'v_r_measure_smooth'], 
-                                                                                    prev_detect[f'v_theta_measure_smooth'],
-                                                                                    prev_detect[f'v_fi_measure_smooth'],
-                                                                                    prev_detect[f'r_measure_smooth'],
-                                                                                    prev_detect[f'theta_measure_smooth'],
-                                                                                    prev_detect[f'fi_measure_smooth']
-                                                                                    )
+                    print(f'For sphere cast prev_theta_measure_smooth = {prev_detect[f'theta_measure_smooth'][0]}, prev_theta_measure = {prev_detect[f'theta_measure'][0]}, theta_theta_measure_extr = {prev_detect[f'theta_measure_extr'][0]}')
+                    print(f'For sphere cast prev_fi_measure_smooth = {prev_detect[f'fi_measure_smooth'][0]}, prev_fi_measure = {prev_detect[f'fi_measure'][0]}, prev_fi_measure_extr = {prev_detect[f'fi_measure_extr'][0]}')
+                    pd_v_x, pd_v_y, pd_v_z = self.__spherical_to_cartesian_velocity(
+                        prev_detect[f'v_r_measure_smooth'], 
+                        prev_detect[f'v_theta_measure_smooth'],
+                        prev_detect[f'v_fi_measure_smooth'],
+                        prev_detect[f'r_measure_smooth'],
+                        prev_detect[f'theta_measure_smooth'],
+                        prev_detect[f'fi_measure_smooth']
+                    )
                     print(f'Cast vel = {pd_v_x[0], pd_v_y[0], pd_v_z[0]}, true vel = {prev_detect[f'v_x_true'][0], prev_detect[f'v_y_true'][0], prev_detect[f'v_z_true'][0]}')
-                    pd_x, pd_y, pd_z = self.__to_cartesian_coord(prev_detect[f'r_measure_smooth'],
-                                                                 prev_detect[f'theta_measure_smooth'],
-                                                                 prev_detect[f'fi_measure_smooth'],
-                                                                )
+                    pd_x, pd_y, pd_z = self.__to_cartesian_coord(
+                        prev_detect[f'r_measure_smooth'],
+                        prev_detect[f'theta_measure_smooth'],
+                        prev_detect[f'fi_measure_smooth'],
+                    )
                     print(f'Cast coord = {pd_x[0], pd_y[0], pd_z[0]}, true coord = {prev_detect[f'x_true'][0], prev_detect[f'y_true'][0], prev_detect[f'z_true'][0]}')
                     new_x = pd_x + pd_v_x * dt
                     new_y = pd_y + pd_v_y * dt
@@ -197,7 +212,7 @@ class RadarSystem(Unit):
                 detections[f'v_{coord}_extr'] = None
             else:
                 dt = (detections['time'] - prev_detect['time']) / 1000 # шаг по врмени в секундах
-                detections[f'v_{coord}'] = (detections[coord] - prev_detect[coord]) / dt
+                detections[f'v_{coord}'] = (detections[coord] - prev_detect[coord]) / dt # Вычисление скорости на текущем цикле обзора, для слудуещего цикла это будет экстраполированная скорость
                 if f'v_{coord}_smooth' not in prev_detect.columns or prev_detect[f'v_{coord}_smooth'].isna().any():
                     if 'v_{coord}_smooth' not in prev_detect.columns:
                         detections[f'v_{coord}_extr'] = detections[f'v_{coord}']
@@ -206,30 +221,24 @@ class RadarSystem(Unit):
                 else:
                     detections[f'v_{coord}_extr'] = prev_detect[f'v_{coord}_smooth']
 
-        sphere_coord = (
-                'r_true',
-                'fi_true',
-                'theta_true',
-                'r_measure', 
-                'fi_measure', 
-                'theta_measure'
-            )
         if prev_detect is None:
-            for coord in sphere_coord:
-                detections[f'v_{coord}'] = None
-                detections[f'v_{coord}_extr'] = None
-                detections[f'v_{coord}_extr_from_cart'] = None
+            detections[f'v_r_true_from_cart'] = None
+            detections[f'v_fi_true_from_cart'] = None
+            detections[f'v_theta_true_from_cart'] = None
+            detections[f'v_r_measure_extr_from_cart'] = None
+            detections[f'v_fi_measure_extr_from_cart'] = None
+            detections[f'v_theta_measure_extr_from_cart'] = None
             detections[f'v_x_true_from_sphere'] = None
             detections[f'v_y_true_from_sphere'] = None
             detections[f'v_z_true_from_sphere'] = None
         else:
-            detections[f'v_r_true_extr_from_cart'], detections[f'v_fi_true_extr_from_cart'], detections[f'v_theta_true_extr_from_cart'] = self.__cartesian_to_spherical_velocity(
-                                                                                                                                prev_detect[f'v_x_true'],
-                                                                                                                                prev_detect[f'v_y_true'],
-                                                                                                                                prev_detect[f'v_z_true'],
-                                                                                                                                prev_detect[f'x_true'],
-                                                                                                                                prev_detect[f'y_true'],
-                                                                                                                                prev_detect[f'z_true']
+            detections[f'v_r_true_from_cart'], detections[f'v_fi_true_from_cart'], detections[f'v_theta_true_from_cart'] = self.__cartesian_to_spherical_velocity(
+                                                                                                                                detections[f'v_x_true'],
+                                                                                                                                detections[f'v_y_true'],
+                                                                                                                                detections[f'v_z_true'],
+                                                                                                                                detections[f'x_true'],
+                                                                                                                                detections[f'y_true'],
+                                                                                                                                detections[f'z_true']
                                                                                                                                 )
             detections[f'v_x_true_from_sphere'], detections[f'v_y_true_from_sphere'], detections[f'v_z_true_from_sphere'] = self.__spherical_to_cartesian_velocity(
                                                                                                                                 detections[f'v_r_true'],
@@ -258,7 +267,7 @@ class RadarSystem(Unit):
             'fi_measure', 
             'theta_measure'
         ):
-            n = 1
+            n = 3
             r = detections['r_measure']
             if coord == 'r_measure':
                 coord_type = 'r'
@@ -278,7 +287,7 @@ class RadarSystem(Unit):
             if prev_detect is None:
                 detections[f'{v}_smooth'] = None
                 continue
-            n = 1
+            n = 3
             r = detections['r_measure']
             if v == 'v_r_measure':
                 coord_type = 'r'
@@ -288,9 +297,9 @@ class RadarSystem(Unit):
                 coord_type = 'theta'
             mu = self.__calc_mu(n, r, coord_type)
             dt = (detections['time'] - prev_detect['time']) / 1000
+            print(f'for smooth {v}_extr = {detections[f'{v}_extr'][0]}, measure = {detections[f'{v[2:]}'][0]}, extr_coord = {detections[f'{v[2:]}_extr'][0]}')
             smooth_v = self.__calc_smooth_v(detections[f'{v}_extr'], detections[f'{v[2:]}'], detections[f'{v[2:]}_extr'], mu, dt)
             print(f'smooth_{v} = {smooth_v[0]}')
-            print(f'for smooth {v}_extr = {detections[f'{v}_extr'][0]}, measure = {detections[f'{v[2:]}'][0]}, extr_coord = {detections[f'{v[2:]}_extr'][0]}')
             detections[f'{v}_smooth'] = smooth_v
 
         # Concat new detections with data
@@ -321,9 +330,9 @@ class RadarSystem(Unit):
         theta = np.arccos(z / r)
         fi = np.arctan2(y, x)
         
-        v_r = v_x * np.sin(theta) * np.cos(fi) + v_y * np.sin(theta) * np.sin(fi) + v_z * np.cos(theta)
-        v_theta = v_x * np.cos(theta) * np.cos(fi) + v_y * np.cos(theta) * np.sin(fi) - v_z * np.sin(theta)
-        v_fi = -v_x * np.sin(fi) + v_y * np.cos(fi)
+        v_r = (v_x * x + v_y * y + v_z * z) / r
+        v_theta = (-v_x * np.sin(fi) + v_y * np.cos(fi) + v_z * np.sin(theta)) / r
+        v_fi = (v_x * np.sin(fi) + v_y * np.cos(fi)) / (r * np.sin(theta))
         
         return v_r, v_theta, v_fi
     
@@ -351,12 +360,13 @@ class RadarSystem(Unit):
     def __calc_smooth_coord(self, measure_coord, extr_coord, mu):
         error_signal = measure_coord - extr_coord
         alpha = self.__calc_alpha(mu)
+        print(f'From calc smooth coord error_signal = {error_signal.values}, alpha = {alpha.values}')
         return extr_coord + alpha * error_signal
     
     def __calc_smooth_v(self, extr_v, measure_coord, extr_coord, mu, dt):
         error_signal = measure_coord - extr_coord
         beta = self.__calc_beta(mu)
-        print(f'error_signal = {error_signal.values}, beta = {beta.values}')
+        print(f'From calc smooth velocity error_signal = {error_signal.values}, beta = {beta.values}')
         return extr_v + beta / dt * error_signal
 
     def __calc_alpha(self, mu):
@@ -410,7 +420,7 @@ class RadarSystem(Unit):
         t0 = self.__detection_period / 1000 # период сопровождени в секундах
         g = 9.8
         tmp = 2 / np.pi * (n * g * t0**2) / (std + eps)
-        if coord_type == 'r':
+        if coord_type != 'r':
             return tmp / r
         return tmp / (r / r)
 

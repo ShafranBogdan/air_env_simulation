@@ -56,8 +56,9 @@ class Generator(Unit):
             sign = np.random.choice([-1, 1], p=[self.neg_v_prob, 1 - self.neg_v_prob])
             velocity = [
                         sign * self.convert_velocity(np.random.choice(self.velocity_pool)), 
-                        sign * self.convert_velocity(np.random.choice(self.velocity_pool)), 
-                        self.convert_velocity(np.random.choice(np.arange(0, 51, 10)))
+                        sign * self.convert_velocity(np.random.choice(self.velocity_pool)),
+                        0
+                        # self.convert_velocity(np.random.choice(np.arange(0, 51, 10)))
                     ]  # Скорости по x, y, z
         else:
             velocity = None

@@ -14,11 +14,11 @@ t = Time()
 
 detection_radius = 40000
 t1 = 0
-t2 = 10**3
+t2 = 10**4
 num_samples = 1
 gen = Generator(detection_radius=detection_radius, start_time=t1, end_time=t2, num_samples=num_samples, num_seg=1)
 air_env = gen.gen_traces()
-radar = RadarSystem(detection_radius=detection_radius, air_env=air_env, detection_period=100, error=np.array([0., 0., 0.]))
+radar = RadarSystem(detection_radius=detection_radius, air_env=air_env, detection_period=100, error=np.array([1., 0.1, 0.1]), sharp_fluctuation_prob=0.)
 for ms in range(t1, t2):
     radar.trigger()
     t.step()
@@ -30,12 +30,18 @@ diff_fi_1 = np.sqrt(((logs['fi_true'] - logs['fi_measure_smooth']) ** 2).mean())
 diff_fi_2 = np.sqrt(((logs['fi_true'] - logs['fi_measure']) ** 2).mean())
 diff_psi_1 = np.sqrt(((logs['theta_true'] - logs['theta_measure_smooth']) ** 2).mean())
 diff_psi_2 = np.sqrt(((logs['theta_true'] - logs['theta_measure']) ** 2).mean())
-diff_v_1 = np.sqrt(((logs['v_r_true'] - logs['v_r_measure_smooth']) ** 2).mean())
-diff_v_2 = np.sqrt(((logs['v_r_true'] - logs['v_r_measure']) ** 2).mean())
+diff_vr_1 = np.sqrt(((logs['v_r_true'] - logs['v_r_measure_smooth']) ** 2).mean())
+diff_vr_2 = np.sqrt(((logs['v_r_true'] - logs['v_r_measure']) ** 2).mean())
+diff_vfi_1 = np.sqrt(((logs['v_fi_true'] - logs['v_fi_measure_smooth']) ** 2).mean())
+diff_vfi_2 = np.sqrt(((logs['v_fi_true'] - logs['v_fi_measure']) ** 2).mean())
+diff_vtheta_1 = np.sqrt(((logs['v_theta_true'] - logs['v_theta_measure_smooth']) ** 2).mean())
+diff_vtheta_2 = np.sqrt(((logs['v_theta_true'] - logs['v_theta_measure']) ** 2).mean())
 print(f'Smooth r std = {diff_r_1}, r measure std = {diff_r_2}')
 print(f'Smooth fi std = {diff_fi_1}, fi measure std = {diff_fi_2}')
 print(f'Smooth theta std = {diff_psi_1}, theta measure std = {diff_psi_2}')
-print(f'Smooth v_r std = {diff_v_1}, v_r measure std = {diff_v_2}')
+print(f'Smooth v_r std = {diff_vr_1}, v_r measure std = {diff_vr_2}')
+print(f'Smooth v_fi std = {diff_vfi_1}, v_fi measure std = {diff_vfi_2}')
+print(f'Smooth v_theta std = {diff_vtheta_1}, v_theta measure std = {diff_vtheta_2}')
 logs.to_csv("logs.csv", index=False)
 
 fig, ax = plt.subplots()
