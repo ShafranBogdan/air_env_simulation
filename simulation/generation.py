@@ -5,7 +5,7 @@ from .trajectory import Trajectory, TrajectorySegment
 from .unit import Unit
 
 class Generator(Unit):
-    def __init__(self, detection_radius:float, start_time:float, end_time:float, neg_v_prob:float = 0.5, num_samples: float = 1, num_seg:float = 2, velocity_pool = np.arange(200, 401, 50), radius_pool=np.arange(5000, 10001, 500)):
+    def __init__(self, detection_radius:float, start_time:float, end_time:float, neg_v_prob:float = 0.5, num_samples: float = 1, num_seg:float = 2, velocity_pool = np.arange(200, 301, 25), radius_pool=np.arange(5000, 10001, 500)):
         super().__init__()
         self.__detection_radius = detection_radius
         self.__num_samples = num_samples

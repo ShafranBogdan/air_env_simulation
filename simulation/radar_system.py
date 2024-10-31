@@ -8,16 +8,28 @@ from .logger import Logger
 class RadarSystem(Unit):
 
     def __init__(self,
-                 logger = Logger('radar_system'),
-                 position: np.array=np.array([0, 0, 0]), 
-                 detection_radius: float=10000, 
-                 error: np.array=np.array([0., 0., 0.]), 
-                 air_env: AirEnv = None,
-                 detection_fault_probability: float = 0., 
-                 detection_period: int = 100,
-                 detection_delay: int = 0,
-                 sharp_fluctuation_prob: float = 0.,
-                 ) -> None:
+                logger = Logger('radar_system'),
+                position: np.array=np.array([0, 0, 0]), 
+                detection_radius: float=10000, 
+                error: np.array=np.array([0., 0., 0.]), 
+                air_env: AirEnv = None,
+                detection_fault_probability: float = 0., 
+                detection_period: int = 100,
+                detection_delay: int = 0,
+                sharp_fluctuation_prob: float = 0.,
+                P_ray: float = 0.,
+                G_trans: float = 0.,
+                G_recv: float = 0.,
+                lamda: float = 0.,
+                sigma: float = 0,
+                tau: float = 0.,
+                miss1: float = 0.,
+                miss2: float = 0.,
+                miss3: float = 0.,
+                N: float = 1.,
+                k1: float = 1.,
+                k2: float = 1.,
+                ) -> None:
         """
         position: позиция радара
         detection_radius: радиус обнаружения в метрах
@@ -26,6 +38,18 @@ class RadarSystem(Unit):
         detection_fault_probability: вероятность ошибки обнаружения 
         detection_period: частота обращения локатора к цели (мс)
         detection_delay: задержка обрашения (мс)
+        P_ray: излучаемая мощность
+        G_trans: коэффициент усиления передающей антенны
+        G_recv:  коэффициент усиления приемной антенны
+        lamda: длина волны
+        sigma: эффективная площадь рассеяния (ЭПР) цели
+        tau: длительность импульса
+        miss1: Потери при передаче сигнала
+        miss2: Потери при обработке сигнала
+        miss3: Ширина диаграммы направленности антенны
+        N: шум-фактор приемного устройства
+        k1: ширина диаграммы направленности антенны
+        k2: полоса сигнала
         """
         super().__init__()
 
@@ -42,6 +66,18 @@ class RadarSystem(Unit):
         self.__fi_error = self.__to_radians(self.__fi_error)
         print(f'Sphere errors = {self.__r_error, self.__theta_error, self.__fi_error}')
         self.__air_env = air_env
+        self.__P_ray = P_ray
+        self.__G_trans = G_trans
+        self.__G_recv = G_recv
+        self.__lamda = lamda
+        self.__sigma = sigma
+        self.__tau = tau
+        self.__miss1 = miss1
+        self.__miss2 = miss2
+        self.__miss3 = miss3
+        self.__N = N
+        self.__k1 = k1
+        self.__k2 = k2
 
         self.__data_dtypes = {
             'is_observed' : 'bool',
@@ -117,6 +153,14 @@ class RadarSystem(Unit):
                 self.detect_air_objects()
 
     def detect_air_objects(self) -> None:
+        prev_detect = None
+        if len(self.__data) != 0: 
+            air_objects_count = self.__air_env.get_air_objects_count()
+            prev_detect = self.__data.tail(air_objects_count)
+            #print(f'prev_detect = {prev_detect}')
+            prev_detect = prev_detect.set_index(prev_detect['id'])
+            #print(f'prev_detect_set = {prev_detect}')
+        
         # Получение положений всех ВО в наблюдаемой AirEnv
         detections = self.__air_env.air_objects_dataframe()
 
@@ -132,23 +176,25 @@ class RadarSystem(Unit):
         detections['time'] = self.time.get_time()
         detections['r_true'], detections['theta_true'], detections['fi_true'] = self.__to_sphere_coord(detections['x_true'], detections['y_true'], detections['z_true'])
 
+        ns = self.__calc_noise_signal(detections['r_true'])
+        print(f'noise/signal in dB = {10 * np.log10(ns[0])}')
+        c = 3 * 10**8
+        r_error_with_ns = c * np.sqrt(np.pi) / (2 * self.__k2 * np.sqrt(2 * ns))
+        fi_error_with_ns = np.sqrt(np.pi) / (self.__to_radians(self.__k1) * np.sqrt(2 * ns))
+        theta_error_with_ns = np.sqrt(np.pi) / (self.__to_radians(self.__k1) * np.sqrt(2 * ns))
+
+        print(f'r_error_with_ns = {r_error_with_ns[0]}')
+        print(f'fi_error_with_ns = {fi_error_with_ns[0]}')
+        print(f'theta_error_with_ns = {theta_error_with_ns[0]}')
         sharp_coef = np.random.choice([0, 1], p=[1 - self.__sharp_fluctuation_prob, self.__sharp_fluctuation_prob])
-        detections['r_measure'] = detections['r_true'] + np.random.normal(0, self.__r_error, len(detections)) + sharp_coef * np.random.uniform(10, 12) # добавим к нормальному шуму еще резкий скачок с какой-то вероятностью
-        detections['theta_measure'] = detections['theta_true'] + np.random.normal(0, self.__theta_error, len(detections))
-        detections['fi_measure'] = detections['fi_true'] + np.random.normal(0, self.__fi_error, len(detections))
+        detections['r_measure'] = detections['r_true'] + np.random.normal(0, r_error_with_ns, len(detections)) + sharp_coef * np.random.uniform(10, 12) # добавим к нормальному шуму еще резкий скачок с какой-то вероятностью
+        detections['theta_measure'] = detections['theta_true'] + np.random.normal(0, theta_error_with_ns, len(detections))
+        detections['fi_measure'] = detections['fi_true'] + np.random.normal(0, fi_error_with_ns, len(detections))
 
         detections['x_measure'], detections['y_measure'], detections['z_measure'] = self.__to_cartesian_coord(detections['r_measure'], detections['theta_measure'], detections['fi_measure'])
         detections['r_error'] = self.__r_error
         detections['theta_error'] = self.__theta_error
         detections['fi_error'] = self.__fi_error
-
-        prev_detect = None
-        if len(self.__data) != 0: 
-            air_objects_count = self.__air_env.get_air_objects_count()
-            prev_detect = self.__data.tail(air_objects_count)
-            #print(f'prev_detect = {prev_detect}')
-            prev_detect = prev_detect.set_index(prev_detect['id'])
-            #print(f'prev_detect_set = {prev_detect}')
 
         for coord in (
             'x_measure',
@@ -267,7 +313,7 @@ class RadarSystem(Unit):
             'fi_measure', 
             'theta_measure'
         ):
-            n = 3
+            n = 4
             r = detections['r_measure']
             if coord == 'r_measure':
                 coord_type = 'r'
@@ -276,6 +322,7 @@ class RadarSystem(Unit):
             elif coord == 'theta_measure':
                 coord_type = 'theta'
             mu = self.__calc_mu(n, r, coord_type)
+            print(f'mu from alpha = {mu.values}, type = {coord_type}')
             smooth_coord = self.__calc_smooth_coord(detections[coord], detections[f'{coord}_extr'], mu)
             detections[f'{coord}_smooth'] = smooth_coord
 
@@ -419,10 +466,25 @@ class RadarSystem(Unit):
         
         t0 = self.__detection_period / 1000 # период сопровождени в секундах
         g = 9.8
-        tmp = 2 / np.pi * (n * g * t0**2) / (std + eps)
+        tmp = 2 * (n * g * t0**2) / (np.pi * (std + eps))
+        print(f'tmp = {tmp}, coord_type = {coord_type}')
         if coord_type != 'r':
             return tmp / r
         return tmp / (r / r)
+    
+    def __calc_noise_signal(self, r):
+        k = 1.38 * 10**(-23)
+        T = 290
+        miss = self.__calc_linear_from_dB(self.__miss1) * self.__calc_linear_from_dB(self.__miss2) * self.__calc_linear_from_dB(self.__miss3)
+        linear_G_trans = self.__calc_linear_from_dB(self.__G_trans)
+        linear_G_recv = self.__calc_linear_from_dB(self.__G_recv)
+        linear_N = self.__calc_linear_from_dB(self.__N)
+        numerator = self.__P_ray * self.__tau * linear_G_trans * linear_G_recv * self.__lamda**2 * self.__sigma * miss
+        denominator = (4 * np.pi)**3 * r**4 * linear_N * k * T
+        return numerator / denominator
+
+    def __calc_linear_from_dB(self, d):
+        return 10**(0.1 * d) # d = 10 * lg(ratio)
 
     def get_data(self) -> pd.DataFrame:
         cp = self.__data.copy()

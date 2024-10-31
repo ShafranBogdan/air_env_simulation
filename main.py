@@ -14,11 +14,28 @@ t = Time()
 
 detection_radius = 40000
 t1 = 0
-t2 = 10**4
+t2 = 5 * 10**4
 num_samples = 1
 gen = Generator(detection_radius=detection_radius, start_time=t1, end_time=t2, num_samples=num_samples, num_seg=1)
 air_env = gen.gen_traces()
-radar = RadarSystem(detection_radius=detection_radius, air_env=air_env, detection_period=100, error=np.array([1., 0.1, 0.1]), sharp_fluctuation_prob=0.)
+radar = RadarSystem(detection_radius=detection_radius, 
+                    air_env=air_env, 
+                    detection_period=100, 
+                    error=np.array([1., 0.001, 0.001]), 
+                    sharp_fluctuation_prob=0.3,
+                    P_ray=150000,
+                    G_recv=50,
+                    G_trans=50,
+                    lamda=0.0035,
+                    sigma=30,
+                    tau=0.0001,
+                    miss1=1.5,
+                    miss2=1.5,
+                    miss3=1.,
+                    N=5,
+                    k1=3, # градус
+                    k2=2*10**6,
+                    )
 for ms in range(t1, t2):
     radar.trigger()
     t.step()
