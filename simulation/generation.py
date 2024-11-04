@@ -88,7 +88,7 @@ class Generator(Unit):
             trajectory = Trajectory()
             print(f"Id = {_}")
             for num_seg in range(self.__num_seg):
-                motion_type = np.random.choice(['linear', 'circular'], p=[1, 0]) if num_seg >= 1 else 'linear'
+                motion_type = ['linear', 'circular'][num_seg % 2] # поочередно сменяется тип движения с линейного на движение по окружности
                 if motion_type == 'linear':
                     trajectory.add_segment(self.__make_linear(trajectory, num_seg))
                 else:
