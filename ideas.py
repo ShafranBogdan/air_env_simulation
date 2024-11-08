@@ -37,19 +37,41 @@
 #                                          previous_segment=trajectory.segments[-1]))
 
 
-
-
-import numpy as np
-
-
-sigma = [4, 4]
-
-v = [1 / s**2 for s in sigma]
-
-ss = np.sum(v)
-s_res = ss**(-0.5)
-
-print( (ss/v[0])**0.5 )
+# ----------------------------------------------------- coords_vizual -----------------------------------------------
+# X = np.zeros((n_radars, t2))
+# x_true = np.zeros(t2)
+# x_estimated = np.zeros(t2)
+# sigmas = sm.get_radar_errors()
+# print("sigmas =      ", sigmas)
+# print("result_sigma =", MathStat.find_res_sigma(sigmas))
+#
+# e_w = np.zeros(t2)
+#
+# popravka = np.zeros(n_radars)
+# print("popravka each 20 steps")
+# for i in range(1, t2):
+#     if (i+1)%20 == 0:
+#         delta = np.mean(X[0, (i//2 - 1):i]) - np.mean( [np.mean(X[1, (i//2 - 1):i]), np.mean(X[2, (i//2 - 1):i]), np.mean(X[3, (i//2 - 1):i])] )
+#         # delta = np.mean(X[0, (i//2 - 1):i]) - np.mean( [np.mean(X[1, (i//2 - 1):i])])#, np.mean(X[2, (i//2 - 1):i]), np.mean(X[3, (i//2 - 1):i])] )
+#         popravka[0] = delta
+#         print(popravka)
+#
+#     x_true[i] = list_of_df[0]["x_true"][i]
+#     X[:, i] = [df["x_measure"][i] for df in list_of_df]
+#     x_estimated[i] = MathStat.weighted_estimator([df["x_measure"][i] for df in list_of_df] - popravka, sigmas)
+#     e_w[i] = round(abs(x_true[i] - x_estimated[i]), 5)
+#
+# x1 = X[0, :]
+# x2 = X[1, :]
+# x3 = X[2, :]
+# x4 = X[3, :]
+#
+# print(np.mean(x1), np.mean( [np.mean(x2), np.mean(x3), np.mean(x4)] ))
+#
+#
+#
+# for i in range(n_radars):
+#     plt.plot(np.arange(t2), X[i, :], label='meas')
 
 
 

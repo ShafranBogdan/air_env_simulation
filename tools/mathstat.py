@@ -16,7 +16,7 @@ class MathStat:
     @staticmethod
     def weighted_estimator(x: np.array, sigma):
         """
-        Расчет оценки (несмещенной и с мин дисперсией) координты цели по данным от нескольких рлс
+        Расчет оценки (несмещенной и с минимальной дисперсией) координаты цели по данным от нескольких рлс
         x = ∑ᵢ₌₁ⁿ wᵢ xᵢ / ∑ᵢ₌ⁿ wᵢ ; i=1..m, m - кол-во рлс
         """
         v = [1 / s ** 2 for s in sigma]
@@ -31,20 +31,26 @@ class MathStat:
         sigma_res = m / ∑ᵢ₌ⁿ vᵢ ; i=1..m, m - кол-во рлс
         """
         v = [1 / s ** 2 for s in sigma]
-        return (len(sigma) / np.sum(v)) ** (0.5)
+        return (len(sigma) / np.sum(v)) ** 0.5
 
 
 class DynamicAlignment:
+    """
+    Класс для реализации динамической юстировки с помощью экспоненциального сглаживания.
+    Коэффициенты при сглаживании (ksi) рассчитываются из соображений минимизации диспресии случайной ошибки усреднения.
+    """
+
     def __init__(self, num_radars, max_ksi=0.99):
-        self.m = num_radars
-        self.max_ksi = max_ksi
-        self.ksi_values = np.ones(num_radars) * max_ksi
-        self.prev_alignments = np.zeros(num_radars)
+        self.m = num_radars  # количество радаров
+        self.max_ksi = max_ksi  # пороговое значение коэф, выше которого нет смысла брать
+        self.ksi_values = np.ones(num_radars) * max_ksi  # сами коэффициенты
+        self.prev_alignments = np.zeros(num_radars)  # предыдущие сглаженные координаты
 
     def compute_alignments(self, coordinates):
         mean_coordinate = np.mean(coordinates)
         deviations = mean_coordinate - coordinates
 
+        # экспоненциальное сглаживание
         alignments = (1 - self.ksi_values) * deviations + self.ksi_values * self.prev_alignments
         aligned_coordinates = coordinates + alignments
 
@@ -53,22 +59,9 @@ class DynamicAlignment:
 
     def update_ksi(self, sigmas):
         """
-        Динамически обновляем коэффициенты ksi, чтобы минимизировать дисперсию.
+        Динамически обновляем коэффициенты ksi, т.к. в ходе моделирования ошибки (sigmas) радаров могут меняться
         """
-        sum_of_squared_sigmas = np.sum([s**2 for s in sigmas])
-
+        sum_of_squared_sigmas = np.sum([s ** 2 for s in sigmas])
         for j in range(self.m):
-            # curr_ksi = np.sqrt( (self.m*(self.m-2) + sum_of_squared_sigmas/sigmas[j]**2) / (self.m*(self.m-1)) ) - 1
-            self.ksi_values[j] = min(self.max_ksi, np.sqrt( (self.m*(self.m-2) + sum_of_squared_sigmas/sigmas[j]**2) / (self.m*(self.m-1)) ) - 1)
-
-
-num_sources = 3
-
-coordinates = np.array([1000, 1100, 950])
-measurement_errors = np.array([125, 1000, 500])
-
-adjuster = DynamicAlignment(num_sources)
-adjuster.update_ksi(measurement_errors)
-adjusted_coordinates = adjuster.compute_alignments(coordinates)
-
-print("Aligned Coordinates:", adjusted_coordinates)
+            self.ksi_values[j] = min(self.max_ksi, np.sqrt(
+                (self.m * (self.m - 2) + sum_of_squared_sigmas / sigmas[j] ** 2) / (self.m * (self.m - 1))) - 1)

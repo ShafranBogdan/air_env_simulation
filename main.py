@@ -2,183 +2,111 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-
 from simulation import RadarSystem
 from simulation import Generator
 from simulation import PBU, SimulationManager
 from tools import MathStat, DynamicAlignment
 from logger import Logger
 
-# пбу в 0, у каждого своя с-ма координаты относ и потом пересчитывать {{{ ЮСТИРОВКА(учет ошибок, чтобы дальше было лучше,
-# исключ. систем. ошибки( нр неправ север и надо повернуть с-му) можно промоделировать это и тд)
-#
-# TODO а что если есть смещенность у какого-то из рлс, оценить её и учесть это (как-то по первым измерениям)
-
-# мб простая гипотеза, где одно из средних отлично от других
-# найти mean, std и посмотреть аномальные отклонения
-# 
-# TODO насколько итоговая ошибка std (после оценки) лучше чем были -> look photo (notes)
-# TODO разные errors x2, x10 -> заметно хороша при большом отношении ошибок
-
 #  снова задуматься над физичностью полета в конкретных координатах
 #  ещё раз подумать о характерных величинах в реал лайф
 
 # TODO !!! пока что закостылил init_position в generation
 
-def vizual(data, detection_radius):
-    # Визуализация
-    fig, ax = plt.subplots()
-    ax.set_xlim(-detection_radius * 1.5 - 10, detection_radius * 1.5 + 10)
-    ax.set_ylim(-detection_radius * 1.5 - 10, detection_radius * 1.5 + 10)
-
-    ax.add_patch(plt.Circle((10000, 10000), detection_radius, fill=False, linestyle='--', label='Radar Range'))
-    ax.add_patch(plt.Circle((-10000, 10000), detection_radius, fill=False, linestyle='--', label='Radar Range'))
-    ax.add_patch(plt.Circle((-10000, -10000), detection_radius, fill=False, linestyle='--', label='Radar Range'))
-    ax.add_patch(plt.Circle((10000, -10000), detection_radius, fill=False, linestyle='--', label='Radar Range'))
-
-    plt.plot(data['x_true'], data['y_true'], label=f"Air object  true coords")
-
-    # plt.draw()
-    plt.xlabel('X Coordinate meters')
-    plt.ylabel('Y Coordinate meters')
-    plt.title('AirObject Trajectory in XY Plane')
-    plt.tight_layout()
-    plt.show()
-
-
-
-detection_radius = 40000
+# ----------------------------------------------------- Initialization -----------------------------------------------
 t1 = 0
-t2 = 200
-
+t2 = 100
+detection_radius = 40000
 gen = Generator(detection_radius=detection_radius, start_time=t1, end_time=t2, num_samples=1, num_seg=2)
 air_env = gen.gen_traces()
 
 e1 = 2
 e2 = 7
 e3 = 5
-e4 = 3
+e4 = 13
+loc1 = 12
+loc2 = 7
+loc3 = -5
+loc4 = 2
+
 n_radars = 4
-radar1 = RadarSystem(position=np.array([10000, 10000, 0]), detection_radius=detection_radius, air_env=air_env, mean = 15, error=e1)
-radar2 = RadarSystem(position=np.array([-10000, 10000, 0]), detection_radius=detection_radius, air_env=air_env, mean = -5, error=e2)
-radar3 = RadarSystem(position=np.array([-10000, -10000, 0]), detection_radius=detection_radius, air_env=air_env, error=e3)
-radar4 = RadarSystem(position=np.array([10000, -10000, 0]), detection_radius=detection_radius, air_env=air_env, error=e4)
+
+radar1 = RadarSystem(position=np.array([10000, 10000, 0]), detection_radius=detection_radius, air_env=air_env,
+                     mean=loc1, error=e1)
+radar2 = RadarSystem(position=np.array([-10000, 10000, 0]), detection_radius=detection_radius, air_env=air_env,
+                     mean=loc2, error=e2)
+radar3 = RadarSystem(position=np.array([-10000, -10000, 0]), detection_radius=detection_radius, air_env=air_env,
+                     mean=loc3, error=e3)
+radar4 = RadarSystem(position=np.array([10000, -10000, 0]), detection_radius=detection_radius, air_env=air_env,
+                     mean=loc4, error=e4)
 
 sm = SimulationManager(air_env, PBU([radar1, radar2, radar3, radar4]))  # передавать {ao} временное решение
 sm.run(t1, t2)
+
+# визуализируем радары
+sm.visualize()
 
 logger = Logger()
 # сохраняем данные в папку /logs
 dataframes = sm.get_data()
 for i in range(len(dataframes)):
-    logger.log_dataFrame(dataframes[i], f'logs{i+1}')
+    logger.log_dataFrame(dataframes[i], f'logs{i + 1}')
 
-list_of_df = [pd.read_csv(f"logs/logs{i+1}.csv") for i in range(n_radars)]
-
-vizual(list_of_df[0], detection_radius)
-
-# ----------------------------------------------------- MEAN -----------------------------------------------
-# e = np.zeros(t2)
-# for i in range(1, t2):
-#     x_true = list_of_df[0]["x_true"][i]
-#     x_avg = np.mean([df["x_measure"][i] for df in list_of_df])  # среднее координаты по всем радарам
-#     e[i] = round(abs(x_true - x_avg), 5)
+# Считываем данные
+list_of_df = [pd.read_csv(f"logs/logs{i + 1}.csv") for i in range(n_radars)]
 
 # ----------------------------------------------------- DynamicAlignment -----------------------------------------------
-din_allign = DynamicAlignment(n_radars)
+
 
 x_true = np.zeros(t2)
+x_estimated_w_align = np.zeros(t2)
 x_estimated = np.zeros(t2)
-x_estimated2 = np.zeros(t2)
-sigmas = sm.get_radar_errors()
-print("sigmas =      ", sigmas)
-print("result_sigma =", MathStat.find_res_sigma(sigmas))
+x_mean = np.zeros(t2)
 
-e_w = np.zeros(t2)
-e_w2 = np.zeros(t2)
+sigmas = sm.get_radars_errors()
+print("sigmas =      ", sigmas)
+print("result_sigma after weighted_estimator =", MathStat.find_res_sigma(sigmas))
+smoother = DynamicAlignment(n_radars)
+smoother.update_ksi(sigmas)
+
+e_estimated_w_align = np.zeros(t2)
+e_estimated = np.zeros(t2)
+e_mean = np.zeros(t2)
 
 for i in range(1, t2):
+    # берем истинные координаты
     x_true[i] = list_of_df[0]["x_true"][i]
+
+    # измеренные координаты от всех радаров
     coords = [df["x_measure"][i] for df in list_of_df]
+    # сгладим их
+    aligned_coords = smoother.compute_alignments(coords)
 
-    din_allign.update_ksi(sigmas)
-    aligned_coords = din_allign.compute_alignments(coords)
+    # 1) просто среднее
+    x_mean[i] = np.mean(coords)
+    e_mean[i] = round(abs(x_true[i] - x_mean[i]), 5)
 
-    x_estimated[i] = MathStat.weighted_estimator(aligned_coords, sigmas)
-    x_estimated2[i] = MathStat.weighted_estimator(coords, sigmas)
-    e_w[i] = round(abs(x_true[i] - x_estimated[i]), 5)
-    e_w2[i] = round(abs(x_true[i] - x_estimated2[i]), 5)
+    # 2) взвешенная оценка без сглаживания
+    x_estimated[i] = MathStat.weighted_estimator(coords, sigmas)
+    e_estimated[i] = round(abs(x_true[i] - x_estimated[i]), 5)
 
+    # 3) взвешенная оценка + сглаживание
+    x_estimated_w_align[i] = MathStat.weighted_estimator(aligned_coords, sigmas)
+    e_estimated_w_align[i] = round(abs(x_true[i] - x_estimated_w_align[i]), 5)
 
-
-# ----------------------------------------------------- coords_vizual -----------------------------------------------
-# X = np.zeros((n_radars, t2))
-# x_true = np.zeros(t2)
-# x_estimated = np.zeros(t2)
-# sigmas = sm.get_radar_errors()
-# print("sigmas =      ", sigmas)
-# print("result_sigma =", MathStat.find_res_sigma(sigmas))
-#
-# e_w = np.zeros(t2)
-#
-# popravka = np.zeros(n_radars)
-# print("popravka each 20 steps")
-# for i in range(1, t2):
-#     if (i+1)%20 == 0:
-#         delta = np.mean(X[0, (i//2 - 1):i]) - np.mean( [np.mean(X[1, (i//2 - 1):i]), np.mean(X[2, (i//2 - 1):i]), np.mean(X[3, (i//2 - 1):i])] )
-#         # delta = np.mean(X[0, (i//2 - 1):i]) - np.mean( [np.mean(X[1, (i//2 - 1):i])])#, np.mean(X[2, (i//2 - 1):i]), np.mean(X[3, (i//2 - 1):i])] )
-#         popravka[0] = delta
-#         print(popravka)
-#
-#     x_true[i] = list_of_df[0]["x_true"][i]
-#     X[:, i] = [df["x_measure"][i] for df in list_of_df]
-#     x_estimated[i] = MathStat.weighted_estimator([df["x_measure"][i] for df in list_of_df] - popravka, sigmas)
-#     e_w[i] = round(abs(x_true[i] - x_estimated[i]), 5)
-#
-# x1 = X[0, :]
-# x2 = X[1, :]
-# x3 = X[2, :]
-# x4 = X[3, :]
-#
-# print(np.mean(x1), np.mean( [np.mean(x2), np.mean(x3), np.mean(x4)] ))
-#
-#
-#
-# for i in range(n_radars):
-#     plt.plot(np.arange(t2), X[i, :], label='meas')
-
-plt.plot(np.arange(t2), x_true, label='true')
-plt.plot(np.arange(t2), x_estimated, label='estimated')
-plt.plot(np.arange(t2), x_estimated2, label='estimated_without_align')
+step = 5
+plt.plot(np.arange(0, t2, step), x_true[::step], label='true')
+plt.plot(np.arange(0, t2, step), x_mean[::step], label='mean')
+plt.plot(np.arange(0, t2, step), x_estimated[::step], label='estimated')
+plt.plot(np.arange(0, t2, step), x_estimated_w_align[::step], label='estimated_w_align')
 plt.legend()
 plt.grid()
 plt.show()
 
-
-plt.plot(np.arange(t2), e_w, label='delta')
-plt.plot(np.arange(t2), e_w2, label='delta_without_align')
+plt.plot(np.arange(0, t2, step), e_mean[::step], label='mean', alpha=0.8)
+plt.plot(np.arange(0, t2, step), e_estimated[::step], label='estimated')
+plt.plot(np.arange(0, t2, step), e_estimated_w_align[::step], color='r', label='estimated_w_align')
 plt.legend()
-plt.legend()
+plt.title("Модуль ошибки относительно истинной координаты")
 plt.grid()
 plt.show()
-
-
-
-# ----------------------------------------------------- WEIGHTS -----------------------------------------------
-# e_w = np.zeros(t2)
-# sigmas = sm.get_radar_errors()
-# for i in range(1, t2):
-#     x_true = list_of_df[0]["x_true"][i]
-#     x_estimated = MathStat.weighted_estimator([df["x_measure"][i] for df in list_of_df], sigmas)
-#     e_w[i] = round(abs(x_true - x_estimated), 5)
-
-# ----------------------------------------------------- VIZUAL -----------------------------------------------
-
-
-
-# plt.plot(np.arange(5, t2), e[5:], color="r", label='mean')
-# plt.plot(np.arange(1, t2), e_w[1:], color="b", alpha=0.5, label='weights')
-# # plt.plot(np.arange(1, t2), e_w2[1:], color="g", alpha=0.5, label='weights2')
-# plt.legend()
-# plt.grid()
-# plt.show()

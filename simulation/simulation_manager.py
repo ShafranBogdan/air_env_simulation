@@ -41,5 +41,31 @@ class SimulationManager:
         """
         return self.__pbu.get_data()
 
-    def get_radar_errors(self):
+    def get_radars_errors(self):
         return self.__pbu.get_errors()
+
+    def get_radars_positions(self):
+        return self.__pbu.get_radars_position()
+
+    def get_radars_detection_radius(self):
+        return self.__pbu.get_radars_detection_radius()
+
+    def visualize(self):
+        data = self.get_data()[0] # берем истинные координаты из любого (тут из первого) радара
+        radii = self.get_radars_detection_radius() # радиусы радаров
+        positions = self.get_radars_positions() # координаты радаров
+
+        # Визуализация
+        fig, ax = plt.subplots()
+
+        for i in range(self.__pbu.get_num_radars()):
+            ax.add_patch(plt.Circle(positions[i][:-1], radii[i], fill=False, linestyle='--', label='Radar Range'))
+
+        plt.plot(data['x_true'], data['y_true'], label=f"Air object  true coords")
+
+        # plt.draw()
+        plt.xlabel('X Coordinate meters')
+        plt.ylabel('Y Coordinate meters')
+        plt.title('AirObject Trajectory in XY Plane')
+        plt.tight_layout()
+        plt.show()

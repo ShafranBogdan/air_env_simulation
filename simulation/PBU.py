@@ -20,6 +20,10 @@ class PBU(Unit):
         for radar in self.__radars.values():
             radar.trigger()
 
+
+    def get_num_radars(self) -> int:
+        return len(self.__radars)
+
     def get_data(self) -> List[pd.DataFrame]:
         return [radar.get_data() for radar in self.__radars.values()]
 
@@ -30,8 +34,8 @@ class PBU(Unit):
         return [radar.get_error() for radar in self.__radars.values()]
 
     def get_radars_position(self) -> List[np.array]:
-        positions = []
-        for radar in self.__radars.values():
-            positions.append(radar.get_position())
+        return [radar.get_position() for radar in self.__radars.values()]
 
-        return positions
+    def get_radars_detection_radius(self) -> List[np.array]:
+        return [radar.get_detection_radius() for radar in self.__radars.values()]
+
