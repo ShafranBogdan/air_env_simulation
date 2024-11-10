@@ -14,16 +14,16 @@ t = Time()
 detection_radius = 40000
 t1 = 0
 t2 = 10**5
-num_samples = 2
+num_samples = 1
 gen = Generator(detection_radius=detection_radius, start_time=t1, end_time=t2, num_samples=num_samples, num_seg=2)
 air_env = gen.gen_traces()
-radar = RadarSystem(detection_radius=detection_radius, air_env=air_env, detection_period=100)
+radar = RadarSystem(detection_radius=detection_radius, air_env=air_env, detection_period=1000)
 for ms in range(t1, t2):
     radar.trigger()
     t.step()
 
 logs = radar.get_data()
-logs.to_csv("logs.csv", index=False)
+logs.to_csv("plane_logs_low_var_dt.csv", index=False)
 
 path_true = r'C:/Users/mi/Documents/C++ Scripts/nir/true_data.txt'
 np.savetxt(path_true, logs.loc[logs['time'].isin(np.arange(t1, t2, 50))][['id','time','r_true','fi_true','psi_true']].values, fmt='%f')

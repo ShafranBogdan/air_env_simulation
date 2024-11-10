@@ -7,7 +7,8 @@ from .air_env import AirEnv
 
 class RadarSystem(Unit):
 
-    def __init__(self, position: np.array=np.array([0, 0, 0]), detection_radius: float=10000, error: float=5., air_env: AirEnv = None,
+    def __init__(self, position: np.array=np.array([0, 0, 0]), detection_radius: float=10000, error_r: float=5., error_fi: float=0.0001, 
+                 error_psi: float=0.0001, air_env: AirEnv = None,
                  detection_fault_probability: float = 0., detection_period: int = 100,
                  detection_delay: int = 0) -> None:
         super().__init__()
@@ -18,7 +19,9 @@ class RadarSystem(Unit):
 
         self.__position = np.array(position, dtype=float)
         self.__detection_radius = detection_radius
-        self.__error = error
+        self.__error_r = error_r
+        self.__error_fi = error_fi
+        self.__error_psi = error_psi
 
         self.__air_env = air_env
 
@@ -37,21 +40,21 @@ class RadarSystem(Unit):
             'r_measure' : 'float64',
             'fi_measure' : 'float64',
             'psi_measure' : 'float64',
-            'v_x_true_extr': 'float64',
-            'v_y_true_extr': 'float64',
-            'v_z_true_extr': 'float64',
-            'v_r_true_extr': 'float64',
-            'v_fi_true_extr': 'float64',
-            'v_psi_true_extr': 'float64',
-            'v_x_measure_extr': 'float64',
-            'v_y_measure_extr': 'float64',
-            'v_z_measure_extr': 'float64',
-            'v_r_measure_extr': 'float64',
-            'v_fi_measure_extr': 'float64',
-            'v_psi_measure_extr': 'float64',
-            'x_err': 'float64',
-            'y_err': 'float64',
-            'z_err': 'float64',
+            'v_x_true': 'float64',
+            'v_y_true': 'float64',
+            'v_z_true': 'float64',
+            'v_r_true': 'float64',
+            'v_fi_true': 'float64',
+            'v_psi_true': 'float64',
+            'v_x_measure': 'float64',
+            'v_y_measure': 'float64',
+            'v_z_measure': 'float64',
+            'v_r_measure': 'float64',
+            'v_fi_measure': 'float64',
+            'v_psi_measure': 'float64',
+            'r_err': 'float64',
+            'fi_err': 'float64',
+            'psi_err': 'float64',
         }
         self.__data = pd.DataFrame(columns=list(self.__data_dtypes.keys())).astype(self.__data_dtypes)
 
@@ -77,16 +80,18 @@ class RadarSystem(Unit):
 
         detections['time'] = self.time.get_time()
         detections['r_true'], detections['fi_true'], detections['psi_true'] = self.__to_sphere_coord(detections['x_true'], detections['y_true'], detections['z_true'])
-        detections['x_measure'] = detections['x_true'] + np.random.normal(0, self.__error, len(detections))
-        detections['y_measure'] = detections['y_true'] + np.random.normal(0, self.__error, len(detections))
-        detections['z_measure'] = detections['z_true'] + np.random.normal(0, self.__error, len(detections))
-        detections['r_measure'], detections['fi_measure'], detections['psi_measure'] = self.__to_sphere_coord(detections['x_measure'], detections['y_measure'], detections['z_measure'])
-        
-        detections['x_err'] = self.__error
-        detections['y_err'] = self.__error
-        detections['z_err'] = self.__error
 
-        # Выичисление скоростей
+        detections['r_measure'] = detections['r_true'] + np.random.normal(0, self.__error_r, len(detections))
+        detections['fi_measure'] = detections['fi_true'] + np.random.normal(0, self.__error_fi, len(detections))
+        detections['psi_measure'] = detections['psi_true'] + np.random.normal(0, self.__error_psi, len(detections))
+
+        detections['x_measure'], detections['y_measure'], detections['z_measure'] = self.__to_cartesian_coord(detections['r_measure'], detections['fi_measure'], detections['psi_measure'])
+        
+        detections['r_err'] = self.__error_r
+        detections['fi_err'] = self.__error_fi
+        detections['psi_err'] = self.__error_psi
+
+        # Вычисление скоростей
         for coord in (
             'x_true', 
             'y_true', 
@@ -101,10 +106,20 @@ class RadarSystem(Unit):
             'fi_measure', 
             'psi_measure'
         ):
-            detections[f'v_{coord}_extr'] = None if len(self.__data) == 0 else (detections[coord] - self.__data.iloc[len(self.__data) - 1][coord]) / (detections['time'] - self.__data.iloc[len(self.__data) - 1]['time'])
+            detections[f'v_{coord}'] = None if len(self.__data) == 0 else (detections[coord] - self.__data.iloc[len(self.__data) - 1][coord]) / (detections['time'] - self.__data.iloc[len(self.__data) - 1]['time'])
 
         # Concat new detections with data
         self.__concat_data(detections)
+
+    def __to_cartesian_coord(self, r, fi, psi) -> tuple:
+        """
+        Перевод сферической системы координат в декартову
+        :return: tuple = (x, y, z)
+        """
+        x = r * np.sin(psi) * np.cos(fi)
+        y = r * np.sin(psi) * np.sin(fi)
+        z = r * np.cos(psi)
+        return (x, y, z)
 
     def __to_sphere_coord(self, x, y, z) -> tuple:
         """
@@ -112,8 +127,8 @@ class RadarSystem(Unit):
         :return: tuple
         """
         r = np.sqrt(x**2 + y**2 + z**2)
-        fi = np.atan(y / x)
-        psi = np.atan(np.sqrt(x**2 + y**2) / z)
+        fi = np.atan2(y, x)
+        psi = np.arccos(z / r)
         return (r, fi, psi)
 
     def __concat_data(self, df: pd.DataFrame) -> None:
