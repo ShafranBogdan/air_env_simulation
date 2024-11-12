@@ -132,7 +132,10 @@ def calculate_correlation_ellipsoid_with_rotation(current_coords, current_veloci
     covariance_ellipse = predicted_covariance[0:3, 0:3]
 
     # Добавляем ковариацию из-за максимального ускорения
-    covariance_ellipse = covariance_ellipse + accel_covariance**2  #!!!! Поправил - теперь квадрат суммы (covariance_ellipse**0.5 +  accel_covariance)**2 ОШИБКА
+    diagonal_cov = np.zeros_like(covariance_ellipse)
+    np.fill_diagonal(diagonal_cov, np.diag(covariance_ellipse))
+    non_diagonal_cov = covariance_ellipse - diagonal_cov
+    covariance_ellipse = (diagonal_cov**0.5 + accel_covariance)**2 + non_diagonal_cov # Поправил
 
     # Порог для доверительного эллипсоида по распределению Хи-квадрат
     steps_of_freedom = 3
@@ -208,25 +211,25 @@ def plot_covariance_ellipse_2d_projection(cov_matrix, mean, measured_position, t
     plt.show()
 
 def start_simulation(idx_measuring):
-    path = r'C:\Users\mi\Documents\НИР\plane_logs_low_var.csv'
+    path = r'C:\Users\mi\Documents\НИР\plane_logs.csv'
     data = pd.read_csv(path)
 
     start_idx = 50
     stop_idx = 1000
     current_coords = data[['r_true', 'fi_true', 'psi_true']].loc[start_idx:stop_idx].values
     current_coords_cartesian = data[['x_true', 'y_true', 'z_true']].loc[start_idx:stop_idx].values
-    velocity = data[['v_r_measure', 'v_fi_measure', 'v_psi_measure']].loc[start_idx:stop_idx].values
+    velocity = data[['v_r_measure', 'v_fi_measure', 'v_psi_measure']].loc[start_idx:stop_idx].values * 1000
     measured_position = data[['r_measure', 'fi_measure', 'psi_measure']].loc[start_idx:stop_idx].values  # измеренная позиция объекта
     measured_position_cartesian = data[['x_measure', 'y_measure', 'z_measure']].loc[start_idx:stop_idx].values
-    delta_t = 1
+    delta_t = 0.1
     varinces = np.array([data['r_err'][0], data['fi_err'][0], data['psi_err'][0],\
-                          data['r_err'][0]/delta_t, data['fi_err'][0]/delta_t, data['psi_err'][0]/delta_t]) ** 2
+                          np.sqrt(4)*data['r_err'][0]/delta_t, np.sqrt(4)*data['fi_err'][0]/delta_t, np.sqrt(4)*data['psi_err'][0]/delta_t]) ** 2
     cov_matr = np.diag(varinces)
 
 
     for idx in idx_measuring:
         # Получаем диапазон возможных значений
-        mean_predicted_position, covariance_ellipse, chi2_val = calculate_correlation_ellipsoid_with_rotation(measured_position[idx], velocity[idx], delta_t, cov_matr)
+        mean_predicted_position, covariance_ellipse, chi2_val = calculate_correlation_ellipsoid_with_rotation(measured_position[idx-1], velocity[idx-1], delta_t, cov_matr)
 
 
         # Проверяем, находится ли измеренная позиция в пределах допустимого диапазона
@@ -239,4 +242,4 @@ def start_simulation(idx_measuring):
         plot_covariance_ellipse_2d_projection(covariance_ellipse, mean_predicted_position,\
                                             measured_position_cartesian[idx-3: idx+1], current_coords_cartesian[idx], idx)
   
-start_simulation([60, 510, 700])
+start_simulation([60, 510, 810])
