@@ -28,7 +28,10 @@ class Time:
 
     def get_dt(self) -> int:
         return self.__dt
-    
+
+    def set_dt(self, dt) -> None:
+        self.__dt = dt
+
     def set(self, t: int) -> None:
         print(f'Time set: {self.__t}ms -> {t}ms')
         self.__t = t

@@ -1,8 +1,9 @@
 import numpy as np
 from .unit import Unit
+from .logger import Logger
 
 class TrajectorySegment(Unit):
-    def __init__(self, start_time, end_time, initial_position, motion_type, params, previous_segment=None):
+    def __init__(self, start_time, end_time, initial_position, motion_type, params, previous_segment=None, logger=Logger(name='trajectory', log_file='log_file.txt'),):
         """
         Параметры:
         - start_time: время начала сегмента
@@ -19,9 +20,10 @@ class TrajectorySegment(Unit):
         self.end_time = end_time
         self.motion_type = motion_type
         self.params = params
+        self.__logger = logger
 
         # Если начальная позиция не задана, вычисляем её по предыдущему сегменту
-        print(f'Segment info: initial_pos = {initial_position}, prev_seg_is_none = {previous_segment is None}, params = {params}, st_time = {start_time}')
+        # self.__logger.debug(f'Segment info: initial_pos = {initial_position}, prev_seg_is_none = {previous_segment is None}, params = {params}, st_time = {start_time}')
         if initial_position is None and previous_segment:
             self.initial_position = previous_segment.get_position_in_segment(previous_segment.end_time)
             if motion_type == 'linear' and params is None: # Хотим при переходе на линейный сегмент иметь направление движение с прошлого сегмента
@@ -31,7 +33,7 @@ class TrajectorySegment(Unit):
                 vy = (self.initial_position[1] - prev_initial_position[1]) / dt
                 vz = (self.initial_position[2] - prev_initial_position[2]) / dt
                 self.params = [vx, vy, vz]
-                print(f'params = {params}')
+                # self.__logger.debug(f'params = {params}')
         else:
             self.initial_position = np.array(initial_position)
 
@@ -118,7 +120,7 @@ class Trajectory:
     def get_position(self, t):
         for segment in self.__segments:
             position = segment.get_position_in_segment(t)
-            # print(segment.start_time, segment.end_time)
+            # self.__logger.debug(segment.start_time, segment.end_time)
             if position is not None:
                 return position
         raise ValueError(f"Время t = {t} вне всех отрезков траектории")
