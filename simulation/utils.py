@@ -30,7 +30,7 @@ def calculate_errors_by_radius(data):
         group['radius_bin'] = pd.cut(group['r_true'], bins=np.arange(0, group['r_true'].max() + 100, 100))
         errors_by_radius[obj_id] = {}
         
-        for radius_bin, radius_group in group.groupby('radius_bin'):
+        for radius_bin, radius_group in group.groupby('radius_bin', observed=False):
             errors_by_radius[obj_id][radius_bin] = {
                 'Smooth r std': np.sqrt(((radius_group['r_true'] - radius_group['r_measure_smooth']) ** 2).mean()),
                 'r measure std': np.sqrt(((radius_group['r_true'] - radius_group['r_measure']) ** 2).mean()),

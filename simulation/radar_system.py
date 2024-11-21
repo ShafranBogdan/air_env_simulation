@@ -216,13 +216,13 @@ class RadarSystem(Unit):
         self.__logger.debug(f'theta_error_with_ns = {self.__theta_error_with_ns[0]}')
         sharp_coef = np.random.choice([0, 1], p=[1 - self.__sharp_fluctuation_prob, self.__sharp_fluctuation_prob])
         detections['r_measure'] = detections['r_true'] + np.random.normal(0, self.__r_error_with_ns, len(detections)) + sharp_coef * np.random.uniform(10, 12) # добавим к нормальному шуму еще резкий скачок с какой-то вероятностью
-        detections['theta_measure'] = self.normalize_theta(detections['theta_true'] + np.random.normal(0, self.__theta_error_with_ns, len(detections)))
-        detections['fi_measure'] = self.normalize_fi(detections['fi_true'] + np.random.normal(0, self.__fi_error_with_ns, len(detections)))
+        detections['theta_measure'] = self.normalize_theta(detections['theta_true'] + np.random.normal(0, self.__theta_error, len(detections)))
+        detections['fi_measure'] = self.normalize_fi(detections['fi_true'] + np.random.normal(0, self.__fi_error, len(detections)))
 
         detections['x_measure'], detections['y_measure'], detections['z_measure'] = self.__to_cartesian_coord(detections['r_measure'], detections['theta_measure'], detections['fi_measure'])
         detections['r_error'] = self.__r_error_with_ns
-        detections['theta_error'] = self.__theta_error_with_ns
-        detections['fi_error'] = self.__fi_error_with_ns
+        detections['theta_error'] = self.__theta_error
+        detections['fi_error'] = self.__fi_error
         
         for coord in (
             'r_measure',
@@ -234,7 +234,7 @@ class RadarSystem(Unit):
                 detections[f'{coord}_extr'] = detections[f'{coord}']
                 detections[f'{coord}_extr_train'] = detections[f'{coord}']
             else:
-                dt = (detections['time'] - prev_detect['time']) / 1000
+                dt = (detections['time'] - prev_detect['time'])
                 # Вычисляем экстраполированные сферические координаты
                 self.__logger.debug(f'For sphere cast prev_v_r_measure_smooth = {prev_detect[f'v_r_measure_smooth'][0]}, prev_v_r_measure = {prev_detect[f'v_r_measure'][0]}, prev_v_r_measure_extr = {prev_detect[f'v_r_measure_extr'][0]}')
                 self.__logger.debug(f'For sphere cast prev_r_measure_smooth = {prev_detect[f'r_measure_smooth'][0]}, prev_r_measure = {prev_detect[f'r_measure'][0]}, prev_r_measure_extr = {prev_detect[f'r_measure_extr'][0]}')
@@ -296,7 +296,7 @@ class RadarSystem(Unit):
             if prev_detect is None:
                 detections[f'v_{coord}'] = None
             else:
-                dt = (detections['time'] - prev_detect['time']) / 1000 # шаг по времени в секундах
+                dt = (detections['time'] - prev_detect['time']) # шаг по времени в секундах
                 detections[f'v_{coord}'] = (detections[coord] - prev_detect[coord]) / dt
 
         if prev_detect is None:
@@ -314,7 +314,7 @@ class RadarSystem(Unit):
             if prev_detect is None:
                 detections[f'v_{coord}'] = None
             else:
-                dt = (detections['time'] - prev_detect['time']) / 1000 # шаг по времени в секундах
+                dt = detections['time'] - prev_detect['time'] # шаг по времени в секундах
                 detections[f'v_{coord}'] = (detections[coord] - prev_detect[coord]) / dt # Вычисление скорости на текущем цикле обзора
 
         if prev_detect is None:
@@ -388,7 +388,7 @@ class RadarSystem(Unit):
             elif v == 'v_theta_measure':
                 coord_type = CoordinateType.THETA
             mu = self.__calc_mu(n, r, coord_type)
-            dt = (detections['time'] - prev_detect['time']) / 1000
+            dt = (detections['time'] - prev_detect['time'])
             self.__logger.debug(f'for smooth {v}_extr = {detections[f'{v}_extr'][0]}, measure = {detections[f'{v[2:]}'][0]}, extr_coord = {detections[f'{v[2:]}_extr'][0]}')
             smooth_v = self.__calc_smooth_v(detections[f'{v}_extr'], detections[f'{v[2:]}'], detections[f'{v[2:]}_extr'], mu, dt, coord_type=coord_type)
             self.__logger.debug(f'smooth_{v} = {smooth_v[0]}')
@@ -410,16 +410,28 @@ class RadarSystem(Unit):
             )
 
         # Расчет таргета для обучения
-        detections['true_alpha_r'] = (detections['r_true'] - detections['r_measure_extr_train']) / (detections['r_measure'] - detections['r_measure_extr_train'])
-        detections['true_alpha_theta'] = (self.normalize_theta(detections['theta_true']) - self.normalize_theta(detections['theta_measure_extr_train'])) / (self.normalize_theta(detections['theta_measure']) - self.normalize_theta(detections['theta_measure_extr_train']))
-        detections['true_alpha_fi'] = (self.normalize_fi(detections['fi_true']) - self.normalize_fi(detections['fi_measure_extr_train'])) / (self.normalize_fi(detections['fi_measure']) - self.normalize_fi(detections['fi_measure_extr_train']))
+        eps = 1e-6
+        if (abs(detections['r_measure'] - detections['r_measure_extr_train']) < eps).any():
+            detections['true_alpha_r'] = None
+        else:
+            detections['true_alpha_r'] = (detections['r_true'] - detections['r_measure_extr_train']) / (detections['r_measure'] - detections['r_measure_extr_train'])
+
+        if (abs(self.normalize_theta(detections['theta_measure']) - self.normalize_theta(detections['theta_measure_extr_train'])) < eps).any():
+            detections['true_alpha_theta'] = None
+        else:
+            detections['true_alpha_theta'] = (self.normalize_theta(detections['theta_true']) - self.normalize_theta(detections['theta_measure_extr_train'])) / (self.normalize_theta(detections['theta_measure']) - self.normalize_theta(detections['theta_measure_extr_train']))
+
+        if (abs(self.normalize_fi(detections['fi_measure']) - self.normalize_fi(detections['fi_measure_extr_train'])) < eps).any():
+            detections['true_alpha_fi'] = None
+        else:
+            detections['true_alpha_fi'] = (self.normalize_fi(detections['fi_true']) - self.normalize_fi(detections['fi_measure_extr_train'])) / (self.normalize_fi(detections['fi_measure']) - self.normalize_fi(detections['fi_measure_extr_train']))
 
         if detections['v_r_true'].isna().any() or detections['v_r_measure_extr'].isna().any():
             detections['true_beta_r'] = None
             detections['true_beta_theta'] = None
             detections['true_beta_fi'] = None
         else:
-            dt = dt = (detections['time'] - prev_detect['time']) / 1000
+            dt = (detections['time'] - prev_detect['time'])
             detections['true_beta_r'] = (detections['v_r_true'] - detections['v_r_measure_extr_train']) * dt / (detections['r_measure'] - detections['r_measure_extr_train'])
             detections['true_beta_theta'] = (detections['v_theta_true'] - detections['v_theta_measure_extr_train']) * dt / (self.normalize_theta(detections['theta_measure']) - self.normalize_theta(detections['theta_measure_extr_train']))
             detections['true_beta_fi'] = (detections['v_fi_true'] - detections['v_fi_measure_extr_train']) * dt / (self.normalize_fi(detections['fi_measure']) - self.normalize_fi(detections['fi_measure_extr_train']))

@@ -33,7 +33,7 @@ air_env = gen.gen_traces()
 radar = RadarSystem(detection_radius=detection_radius, 
                     air_env=air_env, 
                     detection_period=detection_period,
-                    error=np.array([1., 0.001, 0.001]),
+                    error=np.array([1., 0.1, 0.1]),
                     sharp_fluctuation_prob=0.,
                     P_ray=140_000,
                     G_recv=35,

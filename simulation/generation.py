@@ -14,7 +14,7 @@ class Generator(Unit):
             neg_v_prob: float = 0.5, 
             num_samples: int = 1, 
             num_seg: int = 2, 
-            velocity_pool=np.arange(200, 301, 25), 
+            velocity_pool=np.arange(100, 201, 25), 
             radius_pool=np.arange(5000, 10001, 500),
             logger = Logger(name='generation', log_file='log_file.txt'),
         ):
@@ -76,8 +76,8 @@ class Generator(Unit):
         if len(trajectory.get_segments()) != 0:
             return TrajectorySegment(start_time, end_time, None, 'linear', velocity, previous_segment=trajectory.get_segments()[-1])
         else:
-            # initial_position = self.__get_random_position(self.__detection_radius)
-            initial_position = np.array([0, 0, 5000])
+            initial_position = self.__get_random_position(self.__detection_radius)
+            # initial_position = np.array([0, 0, 5000])
             return TrajectorySegment(start_time, end_time, initial_position, 'linear', velocity)
 
     def __make_circular(self, trajectory, time_intervals, num_seg) -> TrajectorySegment:
