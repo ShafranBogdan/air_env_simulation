@@ -15,7 +15,7 @@ class Generator(Unit):
             num_samples: int = 1, 
             num_seg: int = 2, 
             velocity_pool=np.arange(100, 201, 25), 
-            radius_pool=np.arange(5000, 10001, 500),
+            radius_pool=np.arange(8000, 10001, 500),
             logger = Logger(name='generation', log_file='log_file.txt'),
         ):
         super().__init__()
@@ -77,8 +77,45 @@ class Generator(Unit):
             return TrajectorySegment(start_time, end_time, None, 'linear', velocity, previous_segment=trajectory.get_segments()[-1])
         else:
             initial_position = self.__get_random_position(self.__detection_radius)
-            # initial_position = np.array([0, 0, 5000])
+            # initial_position = np.array([1, 1, 5000])
             return TrajectorySegment(start_time, end_time, initial_position, 'linear', velocity)
+
+    def __make_trajectory_to_origin(self, trajectory, time_intervals, num_seg, radius, z_height) -> TrajectorySegment:
+        """
+        Создает прямолинейную траекторию от случайной точки на окружности заданного радиуса на высоте z_height 
+        к точке (0, 0, z_height).
+
+        Параметры:
+        - trajectory: объект траектории, содержащий сегменты.
+        - time_intervals: список интервалов времени.
+        - num_seg: номер сегмента.
+        - radius: радиус окружности в плоскости xy.
+        - z_height: высота по оси z.
+
+        Возвращает:
+        - TrajectorySegment.
+        """
+        start_time, end_time = self.__get_time_interval(time_intervals, num_seg)
+
+        if len(trajectory.get_segments()) == 0:
+            # Выбираем случайный угол для начальной точки на окружности
+            angle = np.random.uniform(0, 2 * np.pi)
+            initial_position = np.array([radius * np.cos(angle), radius * np.sin(angle), z_height])
+
+            # Вычисляем скорости для движения к точке (0, 0, z_height)
+            duration = end_time - start_time
+            velocity = [-initial_position[0] / duration, -initial_position[1] / duration, 0]
+        else:
+            raise ValueError("Для траектории на радар должен быть только один сегмент")
+
+        return TrajectorySegment(
+            start_time=start_time,
+            end_time=end_time,
+            initial_position=initial_position,
+            motion_type='linear',
+            params=velocity,
+            previous_segment=trajectory.get_segments()[-1] if len(trajectory.get_segments()) > 0 else None
+        )
 
     def __make_circular(self, trajectory, time_intervals, num_seg) -> TrajectorySegment:
         radius = np.random.choice(self.radius_pool)
@@ -91,18 +128,27 @@ class Generator(Unit):
             raise ValueError("Движение по окружности может быть только после прямолинейного")
         return TrajectorySegment(start_time, end_time, None, 'circular', [radius, angular_velocity, vz, np.random.choice([-1, 1])], previous_segment=trajectory.get_segments()[-1])
 
-    def gen_traces(self) -> AirEnv:
+    def gen_traces(self, origin_flag=0) -> AirEnv:
         ae = AirEnv()
-        for _ in range(self.__num_samples):
-            trajectory = Trajectory()
-            # self.__logger.debug(f"Id = {_}")
-            time_intervals = self.__generate_random_intervals(self.start_time, self.end_time, self.__num_seg)
-            for num_seg in range(self.__num_seg):
-                motion_type = ['linear', 'circular'][num_seg % 2]
-                if motion_type == 'linear':
-                    trajectory.add_segment(self.__make_linear(trajectory, time_intervals, num_seg))
-                else:
-                    trajectory.add_segment(self.__make_circular(trajectory, time_intervals, num_seg))
-            new_ao = AirObject(trajectory)
-            ae.attach_air_object(new_ao)
+        if origin_flag == 1:
+            for _ in range(self.__num_samples):
+                trajectory = Trajectory()
+                # self.__logger.debug(f"Id = {_}")
+                time_intervals = self.__generate_random_intervals(self.start_time, self.end_time, self.__num_seg)
+                trajectory.add_segment(self.__make_trajectory_to_origin(trajectory, time_intervals, 0, self.__detection_radius, z_height=5000))
+                new_ao = AirObject(trajectory)
+                ae.attach_air_object(new_ao)
+        else:
+            for _ in range(self.__num_samples):
+                trajectory = Trajectory()
+                # self.__logger.debug(f"Id = {_}")
+                time_intervals = self.__generate_random_intervals(self.start_time, self.end_time, self.__num_seg)
+                for seg in range(self.__num_seg):
+                    motion_type = ['linear', 'circular'][seg % 2]
+                    if motion_type == 'linear':
+                        trajectory.add_segment(self.__make_linear(trajectory, time_intervals, seg))
+                    else:
+                        trajectory.add_segment(self.__make_circular(trajectory, time_intervals, seg))
+                new_ao = AirObject(trajectory)
+                ae.attach_air_object(new_ao)
         return ae
