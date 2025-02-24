@@ -21,20 +21,20 @@ import pandas as pd
 
 detection_radius = 100000
 t1 = 0
-t2 = 5 * 10**5
-detection_period = 1000
+t2 = 5 * 10**4
+detection_period = 1
 
 t = Time()
 t.set_dt(detection_period)
 
-num_samples = 1
+num_samples = 3
 gen = Generator(detection_radius=detection_radius, start_time=t1, end_time=t2, num_samples=num_samples, num_seg=1)
-air_env = gen.gen_traces(origin_flag=1)
+air_env = gen.gen_traces(origin_flag=0)
 radar = RadarSystem(detection_radius=detection_radius, 
                     air_env=air_env, 
                     detection_period=detection_period,
                     error=np.array([1., 0.1, 0.1]),
-                    sharp_fluctuation_prob=0.1,
+                    sharp_fluctuation_prob=0.,
                     P_ray=150_000,
                     G_recv=40,
                     G_trans=40,
@@ -45,9 +45,9 @@ radar = RadarSystem(detection_radius=detection_radius,
                     miss2=1.5,
                     miss3=1.,
                     N=5,
-                    k1=4, # градус
+                    k1=5, # градус
                     k2=10**6,
-                    k=0.5,
+                    k=10,
                     )
 
 for ms in tqdm(range(t1, t2, detection_period)):
@@ -67,5 +67,5 @@ for obj_id, error_values in errors.items():
     print('---')
 plot_alpha_beta(data, CoordinateType.FI)
 plot_errors_by_radius(errors_by_radius)
-plot_noise_signal_ratio(data)
+# plot_noise_signal_ratio(data)
 plot_trajectory_in_xy_plane(data, detection_radius=detection_radius)

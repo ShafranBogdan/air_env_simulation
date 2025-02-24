@@ -1,25 +1,12 @@
 import numpy as np
 import pandas as pd
-from enum import Enum
 from scipy.stats import chi2
 
 from .unit import Unit
 from .air_env import AirEnv
 from .logger import Logger
 from .constants import *
-
-class CoordinateType(Enum):
-    RADIUS = "radius"
-    FI = "fi"
-    THETA = "theta"
-
-def get_coord_name(coord_type: CoordinateType) -> str:
-    if coord_type == CoordinateType.RADIUS:
-        return "r"
-    elif coord_type == CoordinateType.FI:
-        return "fi"
-    elif coord_type == CoordinateType.THETA:
-        return "theta"
+from .utils import CoordinateType, get_coord_name
 
 class RadarSystem(Unit):
     def __init__(self,
@@ -29,7 +16,7 @@ class RadarSystem(Unit):
                 error: np.array=np.array([0., 0., 0.]),  
                 air_env: AirEnv = None,
                 detection_fault_probability: float = 0., 
-                detection_period: int = 100,
+                detection_period: int = 1,
                 detection_delay: int = 0,
                 sharp_fluctuation_prob: float = 0.,
                 P_ray: float = 0.,
@@ -204,7 +191,7 @@ class RadarSystem(Unit):
         )
         # detections = detections[detections['is_observed']]
         # detections.drop(columns=['is_observed'], inplace=True)
-        detections['time'] = self.time.get_time() / 1000
+        detections['time'] = self.time.get_time()
         detections['r_true'], detections['theta_true'], detections['fi_true'] = self.__to_sphere_coord(detections['x_true'], detections['y_true'], detections['z_true'])
 
         rcs = self.__calculate_rcs(self.__rcs_mean, detections.shape[0])
@@ -234,8 +221,8 @@ class RadarSystem(Unit):
         self.__logger.debug(f'theta_error_with_ns = {self.__theta_error_with_ns[0]}')
         sharp_coef = np.random.choice([0, 1], p=[1 - self.__sharp_fluctuation_prob, self.__sharp_fluctuation_prob])
         detections['r_measure'] = detections['r_true'] + np.random.normal(0, self.__r_error_with_ns, len(detections)) + sharp_coef * np.random.uniform(50, 60) # добавим к нормальному шуму еще резкий скачок с какой-то вероятностью
-        detections['theta_measure'] = self.normalize_theta(detections['theta_true'] + np.random.normal(0, self.__theta_error_with_ns, len(detections)))
-        detections['fi_measure'] = self.normalize_fi(detections['fi_true'] + np.random.normal(0, self.__fi_error_with_ns, len(detections)))
+        detections['theta_measure'] = detections['theta_true'] + np.random.normal(0, self.__theta_error_with_ns, len(detections))
+        detections['fi_measure'] = detections['fi_true'] + np.random.normal(0, self.__fi_error_with_ns, len(detections))
 
         detections['x_measure'], detections['y_measure'], detections['z_measure'] = self.__to_cartesian_coord(detections['r_measure'], detections['theta_measure'], detections['fi_measure'])
         detections['r_error'] = self.__r_error_with_ns
@@ -278,8 +265,8 @@ class RadarSystem(Unit):
                 new_z = pd_z + pd_v_z * dt
 
                 detections[f'r_measure_extr'], detections[f'theta_measure_extr'], detections[f'fi_measure_extr'] = self.__to_sphere_coord(new_x, new_y, new_z)
-                detections[f'theta_measure_extr'] = self.normalize_theta(detections[f'theta_measure_extr'])
-                detections[f'fi_measure_extr'] = self.normalize_fi(detections[f'fi_measure_extr'])
+                detections[f'theta_measure_extr'] = detections[f'theta_measure_extr']
+                detections[f'fi_measure_extr'] = detections[f'fi_measure_extr']
 
                 # Считаем экстраполированные координаты для обучения как прошлая измеренная скорость на время + предыдщуюя измеренная координата 
                 pd_v_x, pd_v_y, pd_v_z = self.__spherical_to_cartesian_velocity(
@@ -301,8 +288,8 @@ class RadarSystem(Unit):
                 new_z = pd_z + pd_v_z * dt
 
                 detections[f'r_measure_extr_train'], detections[f'theta_measure_extr_train'], detections[f'fi_measure_extr_train'] = self.__to_sphere_coord(new_x, new_y, new_z)
-                detections[f'theta_measure_extr_train'] = self.normalize_theta(detections[f'theta_measure_extr_train'])
-                detections[f'fi_measure_extr_train'] = self.normalize_fi(detections[f'fi_measure_extr_train'])
+                detections[f'theta_measure_extr_train'] = detections[f'theta_measure_extr_train']
+                detections[f'fi_measure_extr_train'] = detections[f'fi_measure_extr_train']
                 break
 
         # Выичисление скоростей
@@ -368,7 +355,7 @@ class RadarSystem(Unit):
             'fi_measure',
             'theta_measure'
         ):
-            n = 4
+            n = 5
             r = detections['r_measure']
             if coord == 'r_measure':
                 coord_type = CoordinateType.RADIUS
@@ -381,9 +368,9 @@ class RadarSystem(Unit):
 
             smooth_coord = self.__calc_smooth_coord(detections[coord], detections[f'{coord}_extr'], mu, detections, coord_type=coord_type)
             if coord_type == CoordinateType.FI:
-                detections[f'{coord}_smooth'] = self.normalize_fi(smooth_coord)
+                detections[f'{coord}_smooth'] = smooth_coord
             elif coord_type == CoordinateType.THETA:
-                detections[f'{coord}_smooth'] = self.normalize_theta(smooth_coord)
+                detections[f'{coord}_smooth'] = smooth_coord
             else:
                 detections[f'{coord}_smooth'] = smooth_coord
 
@@ -398,7 +385,7 @@ class RadarSystem(Unit):
                 detections[f'{v}_smooth'] = None
                 detections[f'beta_{v.split('_')[1]}'] = None
                 continue
-            n = 3
+            n = 5
             r = detections['r_measure']
             if v == 'v_r_measure':
                 coord_type = CoordinateType.RADIUS
@@ -429,7 +416,6 @@ class RadarSystem(Unit):
             )
 
         # Расчет таргета для обучения
-        MEASURE_AND_EXTR_COORD_EPS = 1e-6
         detections['true_alpha_r'] = np.nan
         detections['true_alpha_theta'] = np.nan
         detections['true_alpha_fi'] = np.nan
@@ -444,27 +430,27 @@ class RadarSystem(Unit):
         detections.loc[~condition, 'true_alpha_r'] = np.clip((detections['r_true'] - detections['r_measure_extr_train']) / (detections['r_measure'] - detections['r_measure_extr_train']), 0, 5)
 
         # Условие для theta
-        theta_condition = (abs(self.normalize_theta(detections['theta_measure']) - self.normalize_theta(detections['theta_measure_extr_train'])) < MEASURE_AND_EXTR_COORD_EPS)
+        theta_condition = (abs(detections['theta_measure'] - detections['theta_measure_extr_train']) < MEASURE_AND_EXTR_COORD_EPS)
 
         # Присваиваем 1 строкам, где условие для theta выполняется
         detections.loc[theta_condition, 'true_alpha_theta'] = 1
 
         # Для остальных строк вычисляем значение по формуле для theta
         detections.loc[~theta_condition, 'true_alpha_theta'] = np.clip(
-            (self.normalize_theta(detections['theta_true']) - self.normalize_theta(detections['theta_measure_extr_train'])) / 
-            (self.normalize_theta(detections['theta_measure']) - self.normalize_theta(detections['theta_measure_extr_train'])), 0, 5
+            (detections['theta_true'] - detections['theta_measure_extr_train']) / 
+            (detections['theta_measure'] - detections['theta_measure_extr_train']), 0, 5
         )
 
         # Условие для fi
-        fi_condition = (abs(self.normalize_fi(detections['fi_measure']) - self.normalize_fi(detections['fi_measure_extr_train'])) < MEASURE_AND_EXTR_COORD_EPS)
+        fi_condition = (abs(detections['fi_measure'] - detections['fi_measure_extr_train']) < MEASURE_AND_EXTR_COORD_EPS)
 
         # Присваиваем 1 строкам, где условие для fi выполняется
         detections.loc[fi_condition, 'true_alpha_fi'] = 1
 
         # Для остальных строк вычисляем значение по формуле для fi
         detections.loc[~fi_condition, 'true_alpha_fi'] = np.clip(
-            (self.normalize_fi(detections['fi_true']) - self.normalize_fi(detections['fi_measure_extr_train'])) / 
-            (self.normalize_fi(detections['fi_measure']) - self.normalize_fi(detections['fi_measure_extr_train'])), 0, 5
+            (detections['fi_true'] - detections['fi_measure_extr_train']) / 
+            (detections['fi_measure'] - detections['fi_measure_extr_train']), 0, 5
         )
 
         if detections['v_r_true'].isna().any() or detections['v_r_measure_extr'].isna().any():
@@ -474,8 +460,8 @@ class RadarSystem(Unit):
         else:
             dt = (detections['time'] - prev_detect['time'])
             detections['true_beta_r'] = np.clip((detections['v_r_true'] - detections['v_r_measure_extr_train']) * dt / (detections['r_measure'] - detections['r_measure_extr_train']), 0, 5)
-            detections['true_beta_theta'] = np.clip((detections['v_theta_true'] - detections['v_theta_measure_extr_train']) * dt / (self.normalize_theta(detections['theta_measure']) - self.normalize_theta(detections['theta_measure_extr_train'])), 0, 5)
-            detections['true_beta_fi'] = np.clip((detections['v_fi_true'] - detections['v_fi_measure_extr_train']) * dt / (self.normalize_fi(detections['fi_measure']) - self.normalize_fi(detections['fi_measure_extr_train'])), 0, 5)
+            detections['true_beta_theta'] = np.clip((detections['v_theta_true'] - detections['v_theta_measure_extr_train']) * dt / (detections['theta_measure'] - detections['theta_measure_extr_train']), 0, 5)
+            detections['true_beta_fi'] = np.clip((detections['v_fi_true'] - detections['v_fi_measure_extr_train']) * dt / (detections['fi_measure'] - detections['fi_measure_extr_train']), 0, 5)
         # Concat new detections with data
         self.__concat_data(detections)
 
@@ -547,8 +533,8 @@ class RadarSystem(Unit):
             smooth = extr_coord + alpha * error_signal
             detections['alpha_r'] = alpha
         elif coord_type == CoordinateType.THETA:
-            normalized_measure_coord = self.normalize_theta(measure_coord)
-            normalized_extr_coord = self.normalize_theta(extr_coord)
+            normalized_measure_coord = measure_coord
+            normalized_extr_coord = extr_coord
             error_signal = normalized_measure_coord - normalized_extr_coord
 
             # Обнуляем значения, где разница больше eps, костыль для исправления ситуации -pi - pi = -2pi != 0
@@ -557,8 +543,8 @@ class RadarSystem(Unit):
             smooth[mask] = measure_coord[mask] # в таком случае просто берем измеренную
             detections['alpha_theta'] = alpha
         else:
-            normalized_measure_coord = self.normalize_fi(measure_coord)
-            normalized_extr_coord = self.normalize_fi(extr_coord)
+            normalized_measure_coord = measure_coord
+            normalized_extr_coord = extr_coord
             error_signal = normalized_measure_coord - normalized_extr_coord
             
             smooth = extr_coord + alpha * error_signal
@@ -577,12 +563,12 @@ class RadarSystem(Unit):
             detections['beta_r'] = beta
         elif coord_type == CoordinateType.THETA:
             normalized_measure_coord = measure_coord
-            normalized_extr_coord = self.normalize_theta(extr_coord)
+            normalized_extr_coord = extr_coord
             error_signal = normalized_measure_coord - normalized_extr_coord
             detections['beta_theta'] = beta
         else:
             normalized_measure_coord = measure_coord
-            normalized_extr_coord = self.normalize_fi(extr_coord)
+            normalized_extr_coord = extr_coord
             error_signal = normalized_measure_coord - normalized_extr_coord
             detections['beta_fi'] = beta
 
@@ -637,7 +623,7 @@ class RadarSystem(Unit):
         else:
             raise ValueError(f'coord_type should be one of r, fi, theta')
         
-        t0 = self.__detection_period / 1000 # период сопровождени в секундах
+        t0 = self.__detection_period # период сопровождени в секундах
         g = 9.8
         tmp = 2 * (n * g * t0**2) / (np.pi * (std + eps))
         self.__logger.debug(f'tmp = {tmp}, coord_type = {coord_type}')

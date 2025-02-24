@@ -33,19 +33,14 @@ class Generator(Unit):
         pass
     
     def __generate_random_intervals(self, start_time, end_time, num_seg):
-        random_ratios = np.random.dirichlet(np.ones(num_seg))
-        interval_durations = random_ratios * (end_time - start_time)
-        
-        time_intervals = [start_time]
-        for duration in interval_durations:
-            time_intervals.append(time_intervals[-1] + duration)
+        total_duration = end_time - start_time
+        random_points = np.sort(np.random.choice(range(1, total_duration), num_seg - 1, replace=False))
+
+        time_intervals = [start_time] + list(random_points + start_time) + [end_time]
         return np.array(time_intervals)
 
     def calc_w(self, v: float, r: float) -> float:
         return v / r
-
-    def convert_velocity(self, V: float) -> float:
-        return V / 1000
 
     def __get_random_position(self, r, z_min=10**3, z_max=1.2*10**4) -> np.array:
         vec = np.random.normal(size=3)
@@ -64,8 +59,8 @@ class Generator(Unit):
         if num_seg == 0:
             sign = np.random.choice([-1, 1], p=[self.neg_v_prob, 1 - self.neg_v_prob])
             velocity = [
-                sign * self.convert_velocity(np.random.choice(self.velocity_pool)), 
-                sign * self.convert_velocity(np.random.choice(self.velocity_pool)),
+                sign * np.random.choice(self.velocity_pool), 
+                sign * np.random.choice(self.velocity_pool),
                 0
             ]
         else:
@@ -102,9 +97,15 @@ class Generator(Unit):
             angle = np.random.uniform(0, 2 * np.pi)
             initial_position = np.array([radius * np.cos(angle), radius * np.sin(angle), z_height])
 
-            # Вычисляем скорости для движения к точке (0, 0, z_height)
-            duration = end_time - start_time
-            velocity = [-initial_position[0] / duration, -initial_position[1] / duration, 0]
+            # Вычисляем направление к центру
+            direction_to_center = -initial_position[:2] / np.linalg.norm(initial_position[:2])
+
+            # Выбираем случайную скорость из пула
+            speed = np.random.choice(self.velocity_pool)
+
+            # Задаем скорость в направлении к центру
+            velocity = np.array([direction_to_center[0] * speed, direction_to_center[1] * speed, 0])
+
         else:
             raise ValueError("Для траектории на радар должен быть только один сегмент")
 

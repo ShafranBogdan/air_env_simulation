@@ -16,10 +16,10 @@ def singleton(cls):
 class Time:
     """
     Время задается в ms
-    Стандартны шаг dt = 1 ms
+    Стандартны шаг dt = 1 s
     """
     def __init__(self, dt: int = 1) -> None:
-        print(f'Time initialized: 0ms')
+        print(f'Time initialized: 0s')
         self.__t = 0
         self.__dt = dt
 
@@ -33,7 +33,7 @@ class Time:
         self.__dt = dt
 
     def set(self, t: int) -> None:
-        print(f'Time set: {self.__t}ms -> {t}ms')
+        print(f'Time set: {self.__t} s -> {t} s')
         self.__t = t
 
     def step(self) -> None:

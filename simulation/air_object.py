@@ -1,6 +1,5 @@
 from .unit import Unit
 from .trajectory import Trajectory
-from typing import Callable
 import numpy as np
 
 class AirObject(Unit):

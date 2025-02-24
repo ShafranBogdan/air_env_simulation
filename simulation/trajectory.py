@@ -29,7 +29,7 @@ class TrajectorySegment(Unit):
             if motion_type == 'linear' and params is None: # Хотим при переходе на линейный сегмент иметь направление движение с прошлого сегмента
                 dt = self.time.get_dt()
                 prev_initial_position = previous_segment.get_position_in_segment(previous_segment.end_time - dt)
-                vx = (self.initial_position[0] - prev_initial_position[0]) / dt
+                vx = (self.initial_position[0] - prev_initial_position[0]) / dt # перевели в секунды
                 vy = (self.initial_position[1] - prev_initial_position[1]) / dt
                 vz = (self.initial_position[2] - prev_initial_position[2]) / dt
                 self.params = [vx, vy, vz]
@@ -89,12 +89,14 @@ class TrajectorySegment(Unit):
         if self.motion_type == 'linear':
             vx, vy, vz = self.params
             delta_t = t - self.start_time
+            delta_t = delta_t
             return self.initial_position + np.array([vx * delta_t, vy * delta_t, vz * delta_t])
 
         elif self.motion_type == 'circular':
             radius, angular_velocity, vz, direction = self.params
             delta_t = t - self.start_time
             # Рассчитываем текущее смещение по углу с учетом начального угла
+            delta_t = delta_t
             angle = self.initial_angle - direction * angular_velocity * delta_t
             z_movement = vz * delta_t  # Движение по оси z
             return np.array([

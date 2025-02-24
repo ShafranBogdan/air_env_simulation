@@ -1,8 +1,20 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import itertools
-from .radar_system import CoordinateType, get_coord_name
+from enum import Enum
+
+class CoordinateType(Enum):
+    RADIUS = "radius"
+    FI = "fi"
+    THETA = "theta"
+
+def get_coord_name(coord_type: CoordinateType) -> str:
+    if coord_type == CoordinateType.RADIUS:
+        return "r"
+    elif coord_type == CoordinateType.FI:
+        return "fi"
+    elif coord_type == CoordinateType.THETA:
+        return "theta"
 
 def calculate_errors_by_object(data):
     """Вычисляет ошибки по каждому объекту и сохраняет результаты в словаре."""
@@ -164,18 +176,18 @@ def plot_trajectory_in_xy_plane(data, detection_radius):
         # Истинные координаты
         ax.scatter(ao_data['x_true'], ao_data['y_true'], color='blue', s=10, label=f"Истинные координаты объекта {obj_id}")
         ax.plot(ao_data['x_true'], ao_data['y_true'], color='blue', linestyle='-', alpha=0.5, label=f"Истинный путь объекта {obj_id}")
-        for i, (x, y) in enumerate(zip(ao_data['x_true'], ao_data['y_true'])):
-            ax.text(x, y, str(i), color='blue', fontsize=7)
+        # for i, (x, y) in enumerate(zip(ao_data['x_true'], ao_data['y_true'])):
+        #     ax.text(x, y, str(i), color='blue', fontsize=7)
         
         # Измеренные координаты
         ax.scatter(ao_data['x_measure'], ao_data['y_measure'], color='red', s=10, label=f"Измеренные координаты объекта {obj_id}")
-        for i, (x, y) in enumerate(zip(ao_data['x_measure'], ao_data['y_measure'])):
-            ax.text(x, y, str(i), color='red', fontsize=7)
+        # for i, (x, y) in enumerate(zip(ao_data['x_measure'], ao_data['y_measure'])):
+        #     ax.text(x, y, str(i), color='red', fontsize=7)
 
         # Сглаженные измеренные координаты
         ax.scatter(ao_data['x_measure_smooth'], ao_data['y_measure_smooth'], color='green', s=10, label=f"Сглаженные координаты объекта {obj_id}")
-        for i, (x, y) in enumerate(zip(ao_data['x_measure_smooth'], ao_data['y_measure_smooth'])):
-            ax.text(x, y, str(i), color='green', fontsize=7)
+        # for i, (x, y) in enumerate(zip(ao_data['x_measure_smooth'], ao_data['y_measure_smooth'])):
+        #     ax.text(x, y, str(i), color='green', fontsize=7)
 
     ax.set_xlabel('Координата x, м')
     ax.set_ylabel('Координата y, м')
